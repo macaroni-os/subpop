@@ -142,7 +142,8 @@ You may be wondering -- how does my main application or plugin use existing Pyth
 you normally would. If your plugin needs a module, do the import at the top of the plugin.
 
 However, you don't want to import your subpop plugins using the ``import`` statement. Instead, you always want to
-add them to your hub using ``hub.add(path_to_plugin)``.
+add them to your hub using ``hub.add(path_to_subsystem)``, and then access them via the hub as
+``hub.subsystem.plugin_name.function``.
 
 Subs as Libraries
 -----------------
