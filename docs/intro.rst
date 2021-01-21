@@ -1,0 +1,133 @@
+Introduction
+============
+
+What is Subpop?
+~~~~~~~~~~~~~~~
+
+Subpop is a framework designed to advance the paradigm of Plugin-Oriented Programming, and is designed to be an
+evolution and refinement of the concepts in POP_. It currently has less functionality than POP_, but is designed to
+be more elegant and easier to use. POP evolved at SaltStack and had to meet certain internal needs. Now that SaltStack
+is part of VMware, Inc., we have decided to explore what POP could be lif we designed it from the ground up with
+the benefit of our experience, and not being limited by prior constraints. That's what Subpop is all about.
+
+What is Plugin-Oriented Programming?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Plugin-Oriented Programming is a software development methodology that is designed to encourage code maintainability and
+extensibility. It does this by implementing an alternative Python "code loader" that is a replacement for the
+traditional ``import`` statement, with enhanced functionality to support a paradigm of "pluggable" software. This,
+combined with the concept of a ``hub`` super-global, aims to give developers some interesting approaches for simplifying
+their internal code layout and avoid problems that are commonly found in the development of OO (Object Oriented)
+software at scale.
+
+OOP principles can encourage the creation of large, monolithic code bases that are highly inter-dependent and thus hard
+to maintain as well as refactor. Plugin-Oriented Programming aims to avoid this tendency by encouraging code to be
+organized in small, modular pieces called 'plugins', which are organized into 'plugin subsystems'. This approach to
+organizing code this way is not particularly sophisticated, but somehow this pattern seems to be very beneficial.
+When creating code in this fashion, code can be kept very 'flat' which can make it much simpler and easier to maintain.
+
+OOP and POP can be used together. OOP is an excellent paradigm for encapsulating functionality. But sometimes, another
+tool is needed to organize code which is less focused on encapsulation and more focused on collecting related
+functionality into logical chunks, without having to encapsulate them in a class. This is where POP comes in. When you
+use POP principles, you can encapsulate functionality in a class using OOP when it makes sense -- but if it isn't
+helpful to do so (and it often isn't), then you do not need to 'default' to OOP methods for organizing your code.
+This tendency to 'default to OOP' is what we have found tends to create complex, monolithic code bases.
+
+In a Nutshell, How Do You Use Subpop?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+First, you will create a command-line application in your Python project, using code similar to the following:
+
+.. code-block:: python
+
+  #!/usr/bin/env python3
+
+  from subpop.hub import Hub
+
+  if __name__ == "__main__":
+    hub = Hub()
+
+This main program has just created a "hub". Think of a hub as a super-global variable, that is automatically accessible
+as a global variable in every plugin you add to your code. The hub is designed to give your code a central point of
+reference for both calling other plugins, and also accessing important shared data. This reduces the need to pass this
+data between functions as arguments.
+
+So, what is a plugin? A "plugin" is just Python code that is designed to be loaded by the hub using subpop's code
+loader, rather than the traditional method using an ``import`` statement. Plugins are organized into *plugin subsystems*
+-- which we call "subs". So you will typically define a name for your sub, and then each plugin in the sub will also
+have a name.
+
+In its simplest form, a "sub" is just a directory of plugins. Let's say you have a sub in your Python code called
+``pkgtools``, and it has the plugins ``foobar.py`` and ``oni.py``. In this case, you would add the sub to the Hub as
+follows:
+
+.. code-block:: python
+
+  #!/usr/bin/env python3
+
+  from subpop.hub import Hub
+
+  if __name__ == "__main__":
+    hub = Hub()
+    hub.add("subs/pkgtools")
+
+Above, we specified ``subs/pkgtools``, which references a directory that is relative to the root of your Python
+project's root where the sub lives. By calling ``hub.add`, we have added the plugin subsystem to the hub, and now the
+contents of ``foobar.py`` and ``oni.py`` are accessible as follows:
+
+.. code-block:: python
+
+   hub.pkgtools.foobar.my_function()
+   hub.pkgtools.oni.MY_GLOBAL_VARIABLE
+
+The code for ``subs/pkgtools/foobar.py`` might look something like this:
+
+.. code-block:: python
+
+  #!/usr/bin/env python3
+
+  hub = None
+
+  def my_function():
+    print("Hello, there!")
+    print(f"Oni's global variable is {hub.pkgtools.oni.MY_GLOBAL_VARIABLE}.")
+
+You will notice a couple of things about our very basic example plugin. First, we set ``hub`` to a value of ``None``.
+This is done primarily just as a short-hand to indicate that this code is a plugin. When subpop loads this plugin, the
+``hub`` global will be updated to be the actual ``hub`` defined in your main program.
+
+Next, you can see that the second line of ``my_function()`` references something on the hub. Even though ``hub`` is set
+to ``None`` in the global namespace of the plugin, by the time ``my_function()`` runs, ``hub`` will be "live" and is
+then able to reference a global variable in a neighboring plugin, ``oni.py``.
+
+Subs as Libraries
+-----------------
+
+As you continue to write your program, you are encouraged to define subs and plugins to organize your code. Sometimes,
+you will want to create a sub that is used like a library, where each plugin takes care of a separate part of your
+program. You can then use the hub to allow these various parts of your program to work together. Using this design,
+you can have each plugin be somewhat or completely independent from other plugins, which is more of a "microservice"
+model, as in the following example sub::
+
+  business_logic/
+    billing.py
+    customer.py
+    container.py
+    backup.py
+
+
+By using the hub to tie your program together, it's possible to create complex programs while keeping the design of your
+code very 'flat' and simple, because you don't have to rely on passing arguments between functions as methods nearly as
+much as in a traditional OOP design. This makes refactoring your code a lot easier. If you play with this approach a
+bit, you'll start to see some of the potential of Plugin-Oriented Programming.
+
+Subs as Collections of Plugins
+------------------------------
+
+It's also possible to use subs to organize a collection of what most people commonly associate with the word "plugin" --
+that is, each Python file containing some new capability that gets "plugged in" using the same interface. For example,
+you can imagine a graphics program that supports filters, and each plugin adds a new kind of filter that shows up in
+a menu. Using this design, each plugin file will contain some common interface that can be leveraged by the application
+in a consistent way.
+
+.. _POP: https://pypi.org/project/pop/
