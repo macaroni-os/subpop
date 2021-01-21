@@ -133,7 +133,7 @@ You can also see that our main application can access both plugins, and you can 
 able to access the ``MY_GLOBAL_VARIABLE`` defined in ``oni.py`` as well. You may want to choose to have neighbor
 plugins to access one another as in this example, or discourage or disallow it to have more of a microservices-style
 model in your plugin subsystem, where all the code to handle a specific domain of your application is self-contained
-in an individual plugin with no or minimal external dependencies.
+in an individual plugin, with no or minimal external dependencies on neighboring plugins.
 
 It's OK to Import
 -----------------
