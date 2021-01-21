@@ -60,8 +60,15 @@ loader, rather than the traditional method using an ``import`` statement. Plugin
 have a name.
 
 In its simplest form, a "sub" is just a directory of plugins. Let's say you have a sub in your Python code called
-``pkgtools``, and it has the plugins ``foobar.py`` and ``oni.py``. In this case, you would add the sub to the Hub as
-follows:
+``pkgtools``, and it has the plugins ``foobar.py`` and ``oni.py``. In this case, the plugin structure in your code
+might look like this::
+
+  subs/
+    pkgtools/
+      foobar.py
+      oni.py
+
+You would add the sub to the Hub as follows:
 
 .. code-block:: python
 
@@ -73,14 +80,18 @@ follows:
     hub = Hub()
     hub.add("subs/pkgtools")
 
+
 Above, we specified ``subs/pkgtools``, which references a directory that is relative to the root of your Python
-project's root where the sub lives. By calling ``hub.add`, we have added the plugin subsystem to the hub, and now the
-contents of ``foobar.py`` and ``oni.py`` are accessible as follows:
+project. By calling ``hub.add`, we have added the plugin subsystem to the hub, and now the
+contents of ``foobar.py`` and ``oni.py`` can be used by extending our code as follows:
 
 .. code-block:: python
 
-   hub.pkgtools.foobar.my_function()
-   hub.pkgtools.oni.MY_GLOBAL_VARIABLE
+  if __name__ == "__main__":
+    hub = Hub()
+    hub.add("subs/pkgtools")
+    hub.pkgtools.foobar.my_function()
+    hub.pkgtools.oni.MY_GLOBAL_VARIABLE
 
 The code for ``subs/pkgtools/foobar.py`` might look something like this:
 
@@ -94,13 +105,27 @@ The code for ``subs/pkgtools/foobar.py`` might look something like this:
     print("Hello, there!")
     print(f"Oni's global variable is {hub.pkgtools.oni.MY_GLOBAL_VARIABLE}.")
 
-You will notice a couple of things about our very basic example plugin. First, we set ``hub`` to a value of ``None``.
-This is done primarily just as a short-hand to indicate that this code is a plugin. When subpop loads this plugin, the
-``hub`` global will be updated to be the actual ``hub`` defined in your main program.
+The code for ``subs/pkgtools/oni.py`` might look like this:
 
-Next, you can see that the second line of ``my_function()`` references something on the hub. Even though ``hub`` is set
-to ``None`` in the global namespace of the plugin, by the time ``my_function()`` runs, ``hub`` will be "live" and is
-then able to reference a global variable in a neighboring plugin, ``oni.py``.
+.. code-block:: python
+
+  #!/usr/bin/env python3
+
+  hub = None
+
+  MY_GLOBAL_VARIBLE="I am plugin oni!"
+
+This is an extremely basic example of a Subpop application, sub, and plugins but hopefully it conveys the basic
+organizational structure.
+
+You will notice a couple of things about our very basic example plugins. First, we set ``hub`` to a value of ``None``.
+This is done primarily just as a short-hand to indicate that this code is a plugin. When subpop loads this plugin, the
+the actual ``hub`` defined in your main application will be "injected" into the plugin, making it 'alive'.
+
+You can also see that our main application can access both plugins, and you can also see that the ``foobar.py`` is
+able to access the ``MY_GLOBAL_VARIABLE`` defined in ``oni.py`` as well. You may want to choose to have neighbor
+plugins to access one another as in this example, or discourage or disallow it to have more of a microservices-style
+model in your plugin subsystem.
 
 Subs as Libraries
 -----------------
