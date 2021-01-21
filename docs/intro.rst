@@ -7,7 +7,7 @@ What is Subpop?
 Subpop is a framework designed to advance the paradigm of Plugin-Oriented Programming, and is designed to be an
 evolution and refinement of the concepts in POP_. It currently has less functionality than POP_, but is designed to
 be more elegant and easier to use. POP evolved at SaltStack and had to meet certain internal needs. Now that SaltStack
-is part of VMware, Inc., we have decided to explore what POP could be lif we designed it from the ground up with
+is part of VMware, Inc., we have decided to explore what POP could be if we designed it from the ground up with
 the benefit of our experience, and not being limited by prior constraints. That's what Subpop is all about.
 
 What is Plugin-Oriented Programming?
