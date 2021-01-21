@@ -17,11 +17,11 @@ Plugin-Oriented Programming is a software development methodology that is design
 extensibility. It does this by implementing an alternative Python "code loader" that is a replacement for the
 traditional ``import`` statement, with enhanced functionality to support a paradigm of "pluggable" software. This,
 combined with the concept of a ``hub`` super-global, aims to give developers some interesting approaches for simplifying
-their internal code layout and avoid problems that are commonly found in the development of OO (Object Oriented)
+their internal code layout and avoiding problems that are commonly found in the development of OO (Object Oriented)
 software at scale.
 
 OOP principles can encourage the creation of large, monolithic code bases that are highly inter-dependent and thus hard
-to maintain as well as refactor. Plugin-Oriented Programming aims to avoid this tendency by encouraging code to be
+to maintain as well as refactor. Plugin-Oriented Programming aims to address this tendency by encouraging code to be
 organized in small, modular pieces called 'plugins', which are organized into 'plugin subsystems'. This approach to
 organizing code this way is not particularly sophisticated, but somehow this pattern seems to be very beneficial.
 When creating code in this fashion, code can be kept very 'flat' which can make it much simpler and easier to maintain.
@@ -31,7 +31,9 @@ tool is needed to organize code which is less focused on encapsulation and more 
 functionality into logical chunks, without having to encapsulate them in a class. This is where POP comes in. When you
 use POP principles, you can encapsulate functionality in a class using OOP when it makes sense -- but if it isn't
 helpful to do so (and it often isn't), then you do not need to 'default' to OOP methods for organizing your code.
-This tendency to 'default to OOP' is what we have found tends to create complex, monolithic code bases.
+This tendency to 'default to OOP' is what we have found tends to create complex, monolithic code bases. Because too
+many internals are encapsulated in classes, complex object coupling must occur, with arguments being passed between
+object methods, and this results in a mess over time.
 
 In a Nutshell, How Do You Use Subpop?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
