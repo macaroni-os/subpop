@@ -64,7 +64,7 @@ class Hub:
 	The Hub is a super-global and a core paradigm of Plugin-Oriented Programming. It is designed to always be available
 	as a global in your plugins. The Subpop code loader automatically injects the hub into each plugin's global
 	namespace. This means that any class method or function in your plugin can reference the hub as a global variable.
-	It will be 'live' when your functions or methods are called.
+	It will be transformed into your main thread's Hub object by the time your plugin's functions or methods are called.
 
 	One important note, however -- you won't be able to reference the hub in your plugin's global namespace, since it
 	won't be available yet. So always reference the hub inside a function or method. In other words, here's an example

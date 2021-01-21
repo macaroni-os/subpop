@@ -82,7 +82,7 @@ You would add the sub to the Hub as follows:
 
 
 Above, we specified ``subs/pkgtools``, which references a directory that is relative to the root of your Python
-project. By calling ``hub.add`, we have added the plugin subsystem to the hub, and now the
+project. By calling ``hub.add``, we have added the plugin subsystem to the hub, and now the
 contents of ``foobar.py`` and ``oni.py`` can be used by extending our code as follows:
 
 .. code-block:: python
