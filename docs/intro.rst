@@ -81,8 +81,9 @@ You would add the sub to the Hub as follows:
     hub.add("subs/pkgtools")
 
 
-Above, we specified ``subs/pkgtools``, which references a directory that is relative to the root of your Python
-project. By calling ``hub.add``, we have added the plugin subsystem to the hub, and now the
+Above, we specified ``subs/pkgtools``, which references a directory that is relative to the root of your Python project,
+and the subsystem will now be available at ``hub.pkgtools`` by default (you can use the ``name=`` keyword argument if
+you would like to change this name.)  By calling ``hub.add``, we have added the plugin subsystem to the hub, and now the
 contents of ``foobar.py`` and ``oni.py`` can be used by extending our code as follows:
 
 .. code-block:: python
@@ -113,19 +114,35 @@ The code for ``subs/pkgtools/oni.py`` might look like this:
 
   hub = None
 
-  MY_GLOBAL_VARIBLE="I am plugin oni!"
+  MY_GLOBAL_VARIABLE="I am plugin oni!"
 
 This is an extremely basic example of a Subpop application, sub, and plugins but hopefully it conveys the basic
 organizational structure.
 
 You will notice a couple of things about our very basic example plugins. First, we set ``hub`` to a value of ``None``.
-This is done primarily just as a short-hand to indicate that this code is a plugin. When subpop loads this plugin, the
-the actual ``hub`` defined in your main application will be "injected" into the plugin, making it 'alive'.
+This is done primarily just as a short-hand to indicate that this code is a plugin. The suppop code loader will replace
+it with your main thread’s Hub object by the time your plugin’s functions or methods are called. So when subpop loads
+this plugin, the the actual ``hub`` defined in your main application will be "injected" into the plugin, making it
+available to your plugin's methods and functions. This also includes the possibility of accessing the hub from
+class constructors (``def __init__(self):`` functions) in classes. You might be thinking -- "Ooh! this might come
+in handy for sharing important things throughout my code!" If you thought this, then you are starting to see some
+of the possible benefits of POP paradigms in cleaning up some old, crufty and overly complex code you might have
+lying around.
 
 You can also see that our main application can access both plugins, and you can also see that the ``foobar.py`` is
 able to access the ``MY_GLOBAL_VARIABLE`` defined in ``oni.py`` as well. You may want to choose to have neighbor
 plugins to access one another as in this example, or discourage or disallow it to have more of a microservices-style
-model in your plugin subsystem.
+model in your plugin subsystem, where all the code to handle a specific domain of your application is self-contained
+in an individual plugin with no or minimal external dependencies.
+
+It's OK to Import
+-----------------
+
+You may be wondering -- how does my main application or plugin use existing Python modules? Simply import them as
+you normally would. If your plugin needs a module, do the import at the top of the plugin.
+
+However, you don't want to import your subpop plugins using the ``import`` statement. Instead, you always want to
+add them to your hub using ``hub.add(path_to_plugin)``.
 
 Subs as Libraries
 -----------------
