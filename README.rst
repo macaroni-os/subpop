@@ -22,4 +22,3 @@ Documentation
 
 Please see our Sphinx documentation in the ``docs/`` directory of the
 source code, or browse documentation at https://projects.funtoo.org/subpop/docs/
-

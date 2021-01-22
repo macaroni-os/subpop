@@ -70,22 +70,23 @@ class Hub:
 	won't be available yet. So always reference the hub inside a function or method. In other words, here's an example
 	plugin::
 
-		def my_plugin_function():
-			# hub will be 'live' and work:
-			hub.foo()
+	        def my_plugin_function():
+	                # hub will be 'live' and work:
+	                hub.foo()
 
-		# hub is not initialized yet, and this will not work:
-		hub.foo()
+	        # hub is not initialized yet, and this will not work:
+	        hub.foo()
 
 	Also note: You will want to create a hub in your application's main thread, *before* you start any asyncio loop.
 	See ``LOOP`` below for the right way to start your program's asyncio loop.
 
 	:param lazy: By default, the hub will load plugins when they are first referenced. When ``lazy`` is set to ``False``,
-		all plugins in the sub will be loaded when the sub is added to the hub via ``hub.add(path_to_sub)``.
-		It's recommended to use the default setting of ``True`` -- loading each plugin on first reference.
+	        all plugins in the sub will be loaded when the sub is added to the hub via ``hub.add(path_to_sub)``.
+	        It's recommended to use the default setting of ``True`` -- loading each plugin on first reference.
 	:type lazy: bool
 	"""
-	def __init__(self, lazy: bool=True):
+
+	def __init__(self, lazy: bool = True):
 
 		self.root_dir = os.path.normpath(os.path.join(os.path.realpath(__file__), "../../"))
 		self.paths = {}
@@ -123,45 +124,45 @@ class Hub:
 		code, you will want to use the following pattern in your main thread, prior to starting any
 		asyncio loop::
 
-			async def main_thread():
-				...
+		        async def main_thread():
+		                ...
 
-			if __name__ == "__main__":
-				hub = Hub()
-				hub.LOOP.run_until_complete(main_thread())
+		        if __name__ == "__main__":
+		                hub = Hub()
+		                hub.LOOP.run_until_complete(main_thread())
 
 		Once you are in async code, you can reference ``hub.LOOP`` to get the current running ioloop::
 
-			async def main_thread():
-				fut = hub.LOOP.create_future()
+		        async def main_thread():
+		                fut = hub.LOOP.create_future()
 
 		If you are using threads, here is how you can run async code inside your new thread::
 
-			def my_thread_function(my_arg, kwarg_foo=None):
-				do_cpu_intensive_things()
+		        def my_thread_function(my_arg, kwarg_foo=None):
+		                do_cpu_intensive_things()
 
-			def run_async_adapter(corofn, *args, **kwargs):
-				# This function runs INSIDE a threadpool. By default, Python
-				# does not start an ioloop in a child thread. The hub.LOOP
-				# code magically takes care of instantiating a new ioloop
-				# for the current thread, so we just need to start the ioloop
-				# in this child thread as follows:
-				return hub.LOOP.run_until_complete(corofn(*args, **kwargs))
+		        def run_async_adapter(corofn, *args, **kwargs):
+		                # This function runs INSIDE a threadpool. By default, Python
+		                # does not start an ioloop in a child thread. The hub.LOOP
+		                # code magically takes care of instantiating a new ioloop
+		                # for the current thread, so we just need to start the ioloop
+		                # in this child thread as follows:
+		                return hub.LOOP.run_until_complete(corofn(*args, **kwargs))
 
-			# The thread pool executor will return futures for our ioloop
-			# that are bound to the completion of the child thread. But the
-			# child thread is started without an ioloop in Python by default.
+		        # The thread pool executor will return futures for our ioloop
+		        # that are bound to the completion of the child thread. But the
+		        # child thread is started without an ioloop in Python by default.
 
-			futures = []
-			with ThreadPoolExecutor(max_workers=cpu_count()) as tpexec:
-				for thing_to_do in list_of_things:
-					# This hub.LOOP references the ioloop in the main thread:
-					future = hub.LOOP.run_in_executor(
-						tpexec, run_async_adapter, my_arg, kwarg_foo="bar"
-					)
-					futures.append(future)
-				# wait on *this thread's IO
-				await asyncio.gather(*futures)
+		        futures = []
+		        with ThreadPoolExecutor(max_workers=cpu_count()) as tpexec:
+		                for thing_to_do in list_of_things:
+		                        # This hub.LOOP references the ioloop in the main thread:
+		                        future = hub.LOOP.run_in_executor(
+		                                tpexec, run_async_adapter, my_arg, kwarg_foo="bar"
+		                        )
+		                        futures.append(future)
+		                # wait on *this thread's IO
+		                await asyncio.gather(*futures)
 
 		"""
 		loop = getattr(self._thread_ctx, "_loop", None)

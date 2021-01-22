@@ -22,4 +22,3 @@ TODO: Recursive Loading
 
 POP has the ability to add a sub and all subs underneath it recursively, so that adding ``pkgtools`` might also add
 ``hub.pkgtools.foo`` as a sub, and ``hub.pkgtools.foo.bar`` as a plugin. This will be added soon.
-
