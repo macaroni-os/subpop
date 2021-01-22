@@ -2,8 +2,7 @@
 Subpop
 ******
 
-Copyright 2021 VMware, Inc.
-
+Copyright 2021, Daniel Robbins
 Author: Daniel Robbins <drobbins@funtoo.org>
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use

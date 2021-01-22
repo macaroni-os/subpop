@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath("../../subpop"))
 # -- Project information -----------------------------------------------------
 
 project = "subpop"
-copyright = "2021, VMware, Inc."
+copyright = "2021, Daniel Robbins"
 author = "Daniel Robbins"
 html_context = {"project_url": "https://projects.funtoo.org/subpop"}
 # The full version, including alpha/beta/rc tags
