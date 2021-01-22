@@ -15,7 +15,7 @@ class PluginDirectory:
 	A ``PluginDirectory`` is the object that is put on the Hub when you use ``hub.add()``. So for example, if you
 	do ``hub.add("path/to/foo")``, then ``hub.foo`` will be a ``PluginDirectory`` object. This object handles references
 	to plugins that you want to access, such as ``hub.foo.bar``. By default, a Hub will run in "lazy" mode, which means
-	that except for the speciail ``init.py`` file, all plugins will only be loaded *on first reference* rather than
+	that except for the special ``init.py`` file, all plugins will only be loaded *on first reference* rather than
 	when your run ``hub.add()``. However, if you create your Hub with the ``lazy=False`` keyword argument, it will
 	call the ``PluginDirectory.load()`` method when adding a subsystem, which will automatically load all plugins
 	at startup. This is slower and not normally necessary so is not recommended.
