@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 
 import asyncio
+import inspect
 import os
 import importlib.util
 import threading
 import types
+
+import yaml
 
 
 class PluginDirectory:
@@ -109,18 +112,59 @@ class Hub:
 	:type lazy: bool
 	"""
 
-	def __init__(self, lazy: bool = True):
+	def _find_subpop_yaml(self, filename_of_caller):
 
-		self.root_dir = os.path.normpath(os.path.join(os.path.realpath(__file__), "../../"))
+		subpop_yaml = None
+		start_path = cur_path = os.path.dirname(filename_of_caller)
+		while True:
+			if cur_path == "/":
+				break
+			maybe_path = os.path.join(cur_path, "subpop.yaml")
+			if os.path.exists(maybe_path):
+				subpop_yaml = maybe_path
+				break
+			else:
+				cur_path = os.path.dirname(cur_path)
+
+		if subpop_yaml is None:
+			raise FileNotFoundError(f"Unable to find subpop.yaml for current project. I started looking at {start_path}.")
+		return subpop_yaml
+
+	def _parse_subpop_yaml(self):
+		with open(self.subpop_yaml, "r") as yamlf:
+			yaml_dat = yaml.safe_load(yamlf.read())
+		if "subsystems" in yaml_dat:
+			for subsystem_name, subsystem_dict in yaml_dat["subsystems"].items():
+				self._add_subsystem_from_yaml(subsystem_name, subsystem_dict)
+
+	def _add_subsystem_from_yaml(self, sub_name, subsystem_dict):
+		if "path" not in subsystem_dict:
+			raise IndexError(f"Please specify path for subsystem {sub_name} in {self.subpop_yaml}.")
+		path = subsystem_dict["path"]
+		if self.settings is not None and sub_name in self.settings:
+			self.add(path, sub_name, **self.settings[sub_name])
+		else:
+			self.add(path, sub_name)
+
+	def __init__(self, lazy: bool = True, settings: dict = None):
+
+		frame = inspect.stack()[1]
+		filename_of_caller = frame[0].f_code.co_filename
+
+		self.subpop_yaml = self._find_subpop_yaml(filename_of_caller)
+		self.root_dir = os.path.dirname(self.subpop_yaml)
 		self.paths = {}
 		self.lazy = lazy
 		self._thread_ctx = threading.local()
+		self.settings = settings
 
 		try:
 			self._thread_ctx.loop = asyncio.get_running_loop()
 		except RuntimeError:
 			self._thread_ctx.loop = asyncio.new_event_loop()
 			asyncio.set_event_loop(self._thread_ctx.loop)
+
+		self._parse_subpop_yaml()
 
 	@property
 	def THREAD_CTX(self):
