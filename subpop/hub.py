@@ -159,12 +159,12 @@ class Hub:
 		self.settings = settings
 
 		try:
-			self._thread_ctx.loop = asyncio.get_running_loop()
+			self._thread_ctx._loop = asyncio.get_running_loop()
 		except RuntimeError:
-			self._thread_ctx.loop = asyncio.new_event_loop()
-			asyncio.set_event_loop(self._thread_ctx.loop)
+			self._thread_ctx._loop = asyncio.new_event_loop()
+			asyncio.set_event_loop(self._thread_ctx._loop)
 
-		self._parse_subpop_yaml()
+		# self._parse_subpop_yaml()
 
 	@property
 	def THREAD_CTX(self):
