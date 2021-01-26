@@ -113,7 +113,7 @@ class Hub:
 	"""
 
 	def _find_subpop_yaml(self, filename_of_caller):
-
+		print("FINDING YHAML")
 		subpop_yaml = None
 		start_path = cur_path = os.path.dirname(filename_of_caller)
 		while True:
@@ -147,10 +147,14 @@ class Hub:
 			self.add(path, sub_name)
 
 	def __init__(self, lazy: bool = True, settings: dict = None):
-
 		frame = inspect.stack()[1]
-		filename_of_caller = frame[0].f_code.co_filename
 
+		# If the Hub is being initialized from an executable python program, then it could be a symlink pointing to
+		# the program within the Python project. In fact, that is our hope, as that is the recommended way to use
+		# subpop. So we use os.path.realpath() to dereference the link, so we can search the Python project path
+		# for subpop.yaml, rather than the directory that the symlink happens to be in.
+
+		filename_of_caller = os.path.realpath(frame[0].f_code.co_filename)
 		self.subpop_yaml = self._find_subpop_yaml(filename_of_caller)
 		self.root_dir = os.path.dirname(self.subpop_yaml)
 		self.paths = {}
