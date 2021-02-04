@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
-import inspect
-import os
 import threading
-import types
-import yaml
 
 
 class Hub(dict):
@@ -36,7 +32,7 @@ class Hub(dict):
 	"""
 
 	def __init__(self):
-
+		super().__init__()
 		self._thread_ctx = threading.local()
 		self._hub_dict = {}
 
@@ -45,8 +41,6 @@ class Hub(dict):
 		except RuntimeError:
 			self._thread_ctx._loop = asyncio.new_event_loop()
 			asyncio.set_event_loop(self._thread_ctx._loop)
-
-		# self._parse_subpop_yaml()
 
 	@property
 	def THREAD_CTX(self):
