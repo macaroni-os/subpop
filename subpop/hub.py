@@ -85,7 +85,7 @@ class PluginDirectory:
 		return self.plugins[plugin_name]
 
 
-class Hub:
+class Hub(dict):
 	"""
 	The Hub is a superglobal and a core paradigm of Plugin-Oriented Programming. It is designed to always be available
 	as a global in your plugins. The Subpop code loader automatically injects the hub into each plugin's global
@@ -112,10 +112,9 @@ class Hub:
 	:type lazy: bool
 	"""
 
-	def _find_subpop_yaml(self, filename_of_caller):
-		print("FINDING YHAML")
+	def _find_subpop_yaml(self, dir_of_caller):
 		subpop_yaml = None
-		start_path = cur_path = os.path.dirname(filename_of_caller)
+		start_path = cur_path = dir_of_caller
 		while True:
 			if cur_path == "/":
 				break
@@ -147,20 +146,17 @@ class Hub:
 			self.add(path, sub_name)
 
 	def __init__(self, lazy: bool = True, settings: dict = None):
-		frame = inspect.stack()[1]
-
 		# If the Hub is being initialized from an executable python program, then it could be a symlink pointing to
 		# the program within the Python project. In fact, that is our hope, as that is the recommended way to use
 		# subpop. So we use os.path.realpath() to dereference the link, so we can search the Python project path
 		# for subpop.yaml, rather than the directory that the symlink happens to be in.
-
-		filename_of_caller = os.path.realpath(frame[0].f_code.co_filename)
-		self.subpop_yaml = self._find_subpop_yaml(filename_of_caller)
+		
+		self.subpop_yaml = self._find_subpop_yaml(sys.path[0])
 		self.root_dir = os.path.dirname(self.subpop_yaml)
-		self.paths = {}
 		self.lazy = lazy
 		self._thread_ctx = threading.local()
 		self.settings = settings
+		self._hub_dict = {}
 
 		try:
 			self._thread_ctx._loop = asyncio.get_running_loop()
@@ -264,9 +260,9 @@ class Hub:
 		pdir = os.path.join(self.root_dir, path)
 		if not os.path.isdir(pdir):
 			raise FileNotFoundError(f"Plugin directory {pdir} not found or not a directory.")
-		self.paths[name] = PluginDirectory(self, pdir, init_kwargs=init_kwargs)
+		self[name] = PluginDirectory(self, pdir, init_kwargs=init_kwargs)
 		if not self.lazy:
-			self.paths[name].load()
+			self[name].load()
 
 	def load_plugin(self, path, name, init_kwargs=None):
 		"""
@@ -325,6 +321,11 @@ class Hub:
 		return mod
 
 	def __getattr__(self, name):
-		if name not in self.paths:
+		if name not in self:
 			raise AttributeError(f"{name} not found on hub.")
-		return self.paths[name]
+		return self[name]
+
+	def __setattr__(self, key, val):
+		self[key] = val
+
+# vim: ts=4 sw=4 noet
