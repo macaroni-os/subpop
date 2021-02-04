@@ -3,86 +3,9 @@
 import asyncio
 import inspect
 import os
-import importlib.util
 import threading
 import types
-
 import yaml
-
-
-class PluginDirectory:
-	"""
-	A ``PluginDirectory`` is the object that is put on the Hub when you use ``hub.add()``. So for example, if you
-	do ``hub.add("path/to/foo")``, then ``hub.foo`` will be a ``PluginDirectory`` object. This object handles references
-	to plugins that you want to access, such as ``hub.foo.bar``. By default, a Hub will run in "lazy" mode, which means
-	that except for the special ``init.py`` file, all plugins will only be loaded *on first reference* rather than
-	when your run ``hub.add()``. However, if you create your Hub with the ``lazy=False`` keyword argument, it will
-	call the ``PluginDirectory.load()`` method when adding a subsystem, which will automatically load all plugins
-	at startup. This is slower and not normally necessary so is not recommended.
-
-	The ``PluginDirectory.__getattr__`` method is what implements the 'hook' to dynamically load plugins as they are
-	referenced.
-	"""
-
-	def __init__(self, hub, path, init_kwargs=None):
-		self.path = path
-		self.hub = hub
-		self.init_done = False  # This means that we tried to run init.py if one existed.
-		self.loaded = False  # This means the plugin directory has been fully loaded and initialized.
-		self.plugins = {}
-		self.init_kwargs = init_kwargs
-		self.do_dir_init()
-
-	def ensure_plugin(self, plugin_name):
-		"""
-		This allows a plugin to be explicitly loaded, which is handy if you are using lazy loading (load on first
-		reference to something in a plugin) but your first interaction with it.
-		"""
-		self.do_dir_init()
-		if self.loaded:
-			if plugin_name not in self.plugins:
-				raise IndexError(f"Unable to find plugin {plugin_name}.")
-		else:
-			self.plugins[plugin_name] = self.hub.load_plugin(os.path.join(self.path, plugin_name + ".py"), plugin_name)
-
-	def do_dir_init(self):
-		"""
-		This method performs the initialization of the subsystem -- the loading of ``init.py`` -- if it exists.
-		This *always* happens first, even if the subsystem is being lazy-loaded.
-		"""
-		if self.init_done:
-			return
-		init_path = os.path.join(self.path, "init.py")
-		if os.path.exists(init_path):
-			print(f"Loading init from {init_path}")
-			# Load "init.py" plugin and also pass init_kwargs which will get passed to the __init__() method.
-			self.plugins["init"] = self.hub.load_plugin(init_path, "init", init_kwargs=self.init_kwargs)
-		self.init_done = True
-
-	def load(self):
-		"""
-		The Hub will call this to force-load all of the plugins when running in non-lazy mode.
-		"""
-		self.do_dir_init()
-		for item in os.listdir(self.path):
-			if item in ["__init__.py", "init.py"]:
-				continue
-			if item.endswith(".py"):
-				plugin_name = item[:-3]
-				if plugin_name not in self.plugins:
-					self.plugins[plugin_name] = self.hub.load_plugin(os.path.join(self.path, item), plugin_name)
-		self.loaded = True
-
-	def __getattr__(self, plugin_name):
-		"""
-		This is the special method that will ensure a plugin is loaded and available when it is referenced on
-		the hub.
-		"""
-		if not self.loaded:
-			self.load()
-		if plugin_name not in self.plugins:
-			raise AttributeError(f"Plugin {plugin_name} not found.")
-		return self.plugins[plugin_name]
 
 
 class Hub(dict):
@@ -112,50 +35,9 @@ class Hub(dict):
 	:type lazy: bool
 	"""
 
-	def _find_subpop_yaml(self, dir_of_caller):
-		subpop_yaml = None
-		start_path = cur_path = dir_of_caller
-		while True:
-			if cur_path == "/":
-				break
-			maybe_path = os.path.join(cur_path, "subpop.yaml")
-			if os.path.exists(maybe_path):
-				subpop_yaml = maybe_path
-				break
-			else:
-				cur_path = os.path.dirname(cur_path)
+	def __init__(self):
 
-		if subpop_yaml is None:
-			raise FileNotFoundError(f"Unable to find subpop.yaml for current project. I started looking at {start_path}.")
-		return subpop_yaml
-
-	def _parse_subpop_yaml(self):
-		with open(self.subpop_yaml, "r") as yamlf:
-			yaml_dat = yaml.safe_load(yamlf.read())
-		if "subsystems" in yaml_dat:
-			for subsystem_name, subsystem_dict in yaml_dat["subsystems"].items():
-				self._add_subsystem_from_yaml(subsystem_name, subsystem_dict)
-
-	def _add_subsystem_from_yaml(self, sub_name, subsystem_dict):
-		if "path" not in subsystem_dict:
-			raise IndexError(f"Please specify path for subsystem {sub_name} in {self.subpop_yaml}.")
-		path = subsystem_dict["path"]
-		if self.settings is not None and sub_name in self.settings:
-			self.add(path, sub_name, **self.settings[sub_name])
-		else:
-			self.add(path, sub_name)
-
-	def __init__(self, lazy: bool = True, settings: dict = None):
-		# If the Hub is being initialized from an executable python program, then it could be a symlink pointing to
-		# the program within the Python project. In fact, that is our hope, as that is the recommended way to use
-		# subpop. So we use os.path.realpath() to dereference the link, so we can search the Python project path
-		# for subpop.yaml, rather than the directory that the symlink happens to be in.
-		
-		self.subpop_yaml = self._find_subpop_yaml(sys.path[0])
-		self.root_dir = os.path.dirname(self.subpop_yaml)
-		self.lazy = lazy
 		self._thread_ctx = threading.local()
-		self.settings = settings
 		self._hub_dict = {}
 
 		try:
@@ -237,89 +119,6 @@ class Hub(dict):
 			loop = self._thread_ctx._loop = asyncio.new_event_loop()
 		return loop
 
-	def add(self, path, name=None, **init_kwargs):
-		"""
-		This function is the official way to add a plugin subsystem to the Hub.
-
-		:param path: A path to a plugin subsystem directory, relative to the root of your Python project.
-		:type path: str
-		:param name: The name that will be used to map the subsystem to the Hub. Defaults to last portion of
-		   path -- the directory name of the subsystem -- but you can use this to override it.
-		:type name: str
-		:param init_kwargs: Any additional keyword arguments passed to this method will be passed to the
-		   ``__init__()`` function of the ``init.py`` in the subsystem, if the subsystem has these things.
-		   This is the official way to pass things in to the intialization of a subsystem. Often, the
-		   ``__init__()`` function will add certain objects to the Hub. It's recommended that if you do
-		   this, that these objects are in UPPERCASE. See :meth:`subpop.hub.Hub.load_plugin` for more details
-		   on the internals of how this works.
-		:type init_kwargs: dict
-		:return: None
-		"""
-		if name is None:
-			name = os.path.basename(path)
-		pdir = os.path.join(self.root_dir, path)
-		if not os.path.isdir(pdir):
-			raise FileNotFoundError(f"Plugin directory {pdir} not found or not a directory.")
-		self[name] = PluginDirectory(self, pdir, init_kwargs=init_kwargs)
-		if not self.lazy:
-			self[name].load()
-
-	def load_plugin(self, path, name, init_kwargs=None):
-		"""
-
-		This is a method which is used internally but can also be used by subpop users. You point to a python file, and
-		it will load this file as a plugin, meaning that it will do all the official initialization that happens for a
-		plugin, such as injecting the Hub into the plugin's global namespace so all references to "hub" in the plugin
-		work correctly.
-
-		This method will return the module object without attaching it to the hub. This can be used by subpop users to
-		create non-standard plugin structures -- for example, it is used by Funtoo's metatools (funtoo-metatools) to
-		load ``autogen.py`` files that exist in kit-fixups. For example::
-
-		  myplug = hub.load_plugin("/foo/bar/oni/autogen.py")
-		  # Use the plugin directly, without it being attached to the hub
-		  await myplug.generate()
-		  # Now you're done using it -- it will be garbage-collected.
-
-		This method returns the actual live module that is loaded by importlib. Because the module is not actually
-		attached to the hub, you have a bit more flexibility as you potentially have the only reference to this module.
-		This is ideal for "use and throw away" situations where you want to access a plugin for a short period of time
-		and then dispose of it. Funtoo metatools makes use of this as it can use the ``autogen.py`` that is loaded
-		and then know that it will be garbage collected after it is done being used.
-
-		:param path: The absolute file path to the .py file in question that you want to load as a plugin.
-		:type path: str
-		:param name: The 'name' of the module. It is possible this may not be really beneficial to specify
-		       and might be deprecated in the future.
-		:type name: str
-		:param init_kwargs: When this method is used internally by the hub, sometimes it is used to load the
-		   ``init.py`` module, which is a file in a plugin subsystem that is treated specially because it is always
-		   loaded first, if it exists. ``init.py`` can be thought of as the  "constructor" of the subsystem, to set
-		   things up for the other plugins. This is done via the ``__init___()`` function in this file. The
-		   ``__init__()``  function will be passed any keyword arguments defined in ``init_kwargs``, when
-		   ``init_kwargs`` is a dict and ``__init__()`` exists in your subsystem. This really isn't intended to
-		   be used directly by users of subpop -- but the Hub uses this internally for subsystem initialization.
-		   See the :meth:`subpop.hub.Hub.add` method for more details on this.
-		:type init_kwargs: dict
-		:return: the actual loaded plugin
-		:rtype: :meth:`importlib.util.ModuleType`
-		"""
-		spec = importlib.util.spec_from_file_location(name, path)
-		if spec is None:
-			raise FileNotFoundError(f"Could not find plugin: {path}")
-		mod = importlib.util.module_from_spec(spec)
-		spec.loader.exec_module(mod)
-		# inject hub into plugin so it's available:
-		mod.hub = self
-		init_func = getattr(mod, "__init__", None)
-		if init_func is not None and isinstance(init_func, types.FunctionType):
-			if init_kwargs is None:
-				init_func()
-			else:
-				# pass what was sent to hub.add("foo", blah=...) as kwargs to __init__() in the init.py.
-				init_func(**init_kwargs)
-		return mod
-
 	def __getattr__(self, name):
 		if name not in self:
 			raise AttributeError(f"{name} not found on hub.")
@@ -327,5 +126,6 @@ class Hub(dict):
 
 	def __setattr__(self, key, val):
 		self[key] = val
+
 
 # vim: ts=4 sw=4 noet
