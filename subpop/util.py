@@ -8,6 +8,10 @@ from types import ModuleType
 
 import yaml
 
+# TODO: Unify hub injection code in load_plugin() and in the DyneFinder class.
+# TODO: DyneFinder does not find multiple dynes and doesn't merge them yet. This needs some redesign.
+# TODO:
+
 
 def load_plugin(path, name, model=None):
 	"""
@@ -107,11 +111,12 @@ class YAMLProjectData:
 	def project_path(self):
 		return os.path.dirname(self.yaml_path)
 
-	def get_subsystem(self, sub_name):
-		if "subsystems" in self.yaml_dat and sub_name in self.yaml_dat["subsystems"]:
-			return self.yaml_dat["subsystems"][sub_name]
+	@property
+	def subsystem_path(self):
+		return self.yaml_dat["subsystems"]["path"]
 
 	def resolve_relative_subsystem(self, rel_subparts):
+		logging.warning(f"resolve relative {rel_subparts}")
 		"""
 		When we import something like this::
 
@@ -137,11 +142,11 @@ class YAMLProjectData:
 		if not len(rel_subparts):
 			return None
 
-		toplevel_sub = self.get_subsystem(rel_subparts[0])
+		toplevel_sub = os.path.join(self.subsystem_path, rel_subparts[0])
+		logging.warning(f"Got toplevel sub for {rel_subparts[0]} of {toplevel_sub}")
 		if toplevel_sub is None:
 			return None
-
-		return os.path.join(self.project_path, toplevel_sub["path"], "/".join(rel_subparts[1:]))
+		return os.path.join(self.project_path, toplevel_sub, "/".join(rel_subparts[1:])).rstrip("/")
 
 
 class PluginDirectory(ModuleType):
@@ -185,8 +190,9 @@ class DyneFinder:
 
 	prefix = "dyne"
 
-	def __init__(self, plugin_path=None):
+	def __init__(self, hub=None, plugin_path=None):
 		super().__init__()
+		self.hub = hub
 		if plugin_path is None:
 			self.plugin_path = os.getcwd()
 		else:
@@ -254,7 +260,9 @@ class DyneFinder:
 		if ns_relpath in self.yaml_search_dict:
 			# We found a project referenced in PYTHONPATH. Look in it for the plugin.
 			yaml_obj = self.yaml_search_dict[ns_relpath]
+			logging.warning(f"Attempting to resolve {full_split[3:]}")
 			partial_path = yaml_obj.resolve_relative_subsystem(full_split[3:])
+
 		else:
 			# Otherwise, look in our canonical plugin path.
 			partial_path = os.path.join(self.plugin_path, sub_relpath)
@@ -271,6 +279,20 @@ class DyneFinder:
 			loader = importlib.machinery.SourceFileLoader(fullname, partial_path + ".py")
 			mod = sys.modules[fullname] = types.ModuleType(loader.name)
 			loader.exec_module(mod)
+			if self.hub:
+				# do hub/model injection -- as long as we find a hub/model defined (typically set to None)
+				mod.__sub__ = ns_relpath
+				if getattr(mod, "hub", "MISSING") != "MISSING":
+					mod.hub = self.hub
+				if getattr(mod, "model", "MISSING") != "MISSING":
+					mod.model = self.hub.get_model(sub_relpath)
+					if mod.model is None:
+						raise AttributeError(f"Model {sub_relpath} must be initialized via hub.set_model().")
+
+				init_func = getattr(mod, "__init__", None)
+				if init_func is not None and isinstance(init_func, types.FunctionType):
+					init_func()
+
 		elif mod_type == "sub":
 			mod = sys.modules[fullname] = PluginDirectory(fullname, path=partial_path, importer=self)
 			mod.__path__ = []

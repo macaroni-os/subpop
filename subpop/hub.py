@@ -1,10 +1,49 @@
 #!/usr/bin/env python3
 
 import asyncio
+import copy
+import inspect
+import os
 import sys
 import threading
-
+from typing import Any
 from subpop.util import DyneFinder
+
+
+class DeferredModel(dict):
+	"""
+	We need to assign a model to a sub, possibly before the caller has actually set the model.
+	This class allows the model to be pulled in upon first access of an attribute.
+
+	If this auto-feature isn't sufficient for you, call ``model.merge()`` before first use.
+	"""
+
+	def __init__(self, hub=None, sub=None):
+		self["_hub"] = hub
+		self["_sub"] = sub
+		self["_model"] = None
+		super().__init__()
+
+	def __setitem__(self, k, v):
+		super().__setitem__(k, v)
+
+	def __setattr__(self, k: str, v: Any):
+		self[k] = v
+
+	def merge(self):
+		self["_model"] = self["_hub"].__get_real_model__(self["_sub"])
+		for k, v in self["_model"].items():
+			self[k] = v
+
+	def __getattr__(self, k: str):
+		if self["_model"] is None:
+			self.merge()
+		if k not in self:
+			raise AttributeError(f"Make sure you have set a model for {self['_sub']} using hub.set_model().")
+		return self[k]
+
+	def __copy__(self):
+		return {k: copy.copy(v) for k, v in self.items()}
 
 
 class Hub(dict):
@@ -34,10 +73,11 @@ class Hub(dict):
 	:type lazy: bool
 	"""
 
-	def __init__(self):
+	def __init__(self, finder=None):
 		super().__init__()
 		self._thread_ctx = threading.local()
-
+		self._models = {}
+		self._deferred_models = {}
 		try:
 			self._thread_ctx._loop = asyncio.get_running_loop()
 		except RuntimeError:
@@ -45,9 +85,11 @@ class Hub(dict):
 			asyncio.set_event_loop(self._thread_ctx._loop)
 
 		# Initialize meta-loader
-		# if not hasattr(sys, 'frozen'):
-		# 	if len(sys.meta_path) and not isinstance(sys.meta_path[-1], DyneFinder):
-		# 		sys.meta_path.append(DyneFinder())
+		if finder is None:
+			finder = DyneFinder(hub=self)
+		if not hasattr(sys, "frozen"):
+			if len(sys.meta_path) and not isinstance(sys.meta_path[-1], DyneFinder):
+				sys.meta_path.append(finder)
 
 	@property
 	def THREAD_CTX(self):
@@ -122,11 +164,51 @@ class Hub(dict):
 
 	def __getattr__(self, name):
 		if name not in self:
-			raise AttributeError(f"{name} not found on hub.")
+			frame = inspect.stack()[1]
+			filename_of_caller = os.path.realpath(frame[0].f_code.co_filename)
+			raise AttributeError(f"{filename_of_caller} could not find {name} not found on hub.")
 		return self[name]
 
 	def __setattr__(self, key, val):
 		self[key] = val
+
+	def get_model(self, sub):
+		"""
+		This is called by our hub model-mapping code, to grab a DeferredModel() to inject into a plugin.
+
+		We store an internal dict of instances so we will always return the same model once instantiated.
+		This will, in theory, allow other plugins to safely call get_model() again to grab the model of
+		another plugin, after it has been injected into that other plugin.
+		"""
+		if sub not in self._deferred_models:
+			self._deferred_models[sub] = DeferredModel(hub=self, sub=sub)
+		return self._deferred_models[sub]
+
+	def __get_real_model__(self, sub):
+		"""
+		This method is called by the ``DeferredModel`` class, when trying to grab the actual underlying model
+		that has been set by set_model(). It will return None if no model has been set, which ``DeferredModel``
+		will use to identify this scenario.
+		"""
+		try:
+			return self._models[sub]
+		except KeyError:
+			return None
+
+	def set_model(self, sub, model):
+		"""
+		This method is used to set a model for a specific plugin. If a plugin has a "model = None" in the
+		global namespace, then during hub injection, we will inject a ``DeferredModel()`` into the plugin as
+		well. This ``DeferredModel()`` will allow the model set by this method to be accessed by the plugin.
+
+		Typically, the model is a ``NamespaceDict()``.
+
+		:param sub: The string namespaced "sub path", such as "org.funtoo.powerbus/system".
+		:type sub: str
+		:param model: The model to set for the plugin, typically a NamespaceDict.
+		:type model: NamespaceDict
+		"""
+		self._models[sub] = model
 
 
 # vim: ts=4 sw=4 noet
