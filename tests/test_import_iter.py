@@ -5,7 +5,7 @@ import os
 import sys
 import types
 
-from subpop.util import SuperImporter
+from subpop.util import DyneFinder
 
 
 def test_import_iter():
@@ -20,7 +20,7 @@ def test_import_iter():
 	plugin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plugin_test_dir")
 
 	if not hasattr(sys, "frozen"):
-		sys.meta_path.append(SuperImporter(plugin_path=plugin_dir))
+		sys.meta_path.append(DyneFinder(plugin_path=plugin_dir))
 
 	import dyne.org.funtoo.powerbus.system as system
 

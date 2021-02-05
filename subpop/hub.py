@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
 import asyncio
+import sys
 import threading
+
+from subpop.util import DyneFinder
 
 
 class Hub(dict):
@@ -34,13 +37,17 @@ class Hub(dict):
 	def __init__(self):
 		super().__init__()
 		self._thread_ctx = threading.local()
-		self._hub_dict = {}
 
 		try:
 			self._thread_ctx._loop = asyncio.get_running_loop()
 		except RuntimeError:
 			self._thread_ctx._loop = asyncio.new_event_loop()
 			asyncio.set_event_loop(self._thread_ctx._loop)
+
+		# Initialize meta-loader
+		# if not hasattr(sys, 'frozen'):
+		# 	if len(sys.meta_path) and not isinstance(sys.meta_path[-1], DyneFinder):
+		# 		sys.meta_path.append(DyneFinder())
 
 	@property
 	def THREAD_CTX(self):

@@ -1,0 +1,4 @@
+namespace: org.funtoo.anotherproject
+subsystems:
+  mysub:
+    path: mysub

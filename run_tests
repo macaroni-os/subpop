@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# We need pytest-forked for this. And we need forking because we are testing the initial setup of
+# modules. So we want a clean environment for each test. Pytest should do this by default but doesn't
+# because it sucks. pip3 install --user pytest-forked.
+
+exec python3 -m pytest --forked
