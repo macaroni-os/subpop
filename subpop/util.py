@@ -1,19 +1,18 @@
 import importlib
+import importlib.machinery
 import logging
 import os
 import stat
 import sys
 import types
 from types import ModuleType
-
 import yaml
 
-# TODO: Unify hub injection code in load_plugin() and in the DyneFinder class.
+
 # TODO: DyneFinder does not find multiple dynes and doesn't merge them yet. This needs some redesign.
-# TODO:
 
 
-def load_plugin(path, name, model=None):
+def load_plugin(path, name):
 	"""
 
 	This is a method which is used internally but can also be used by subpop users. You point to a python file, and
@@ -53,17 +52,12 @@ def load_plugin(path, name, model=None):
 	:return: the actual loaded plugin
 	:rtype: :meth:`importlib.util.ModuleType`
 	"""
-
-	import importlib.machinery
-
-	loader = importlib.machinery.SourceFileLoader("hub." + name, path)
+	# TODO: dynamically generate module name?
+	loader = importlib.machinery.SourceFileLoader("adhoc_module." + name, path)
 	mod = types.ModuleType(loader.name)
 	loader.exec_module(mod)
-	mod.MODEL = model
-	init_func = getattr(mod, "__init__", None)
-	if init_func is not None and isinstance(init_func, types.FunctionType):
-		init_func()
 	return mod
+	# TODO: perform hub injection!
 
 
 def _find_subpop_yaml(dir_of_caller):
@@ -116,7 +110,6 @@ class YAMLProjectData:
 		return self.yaml_dat["subsystems"]["path"]
 
 	def resolve_relative_subsystem(self, rel_subparts):
-		logging.warning(f"resolve relative {rel_subparts}")
 		"""
 		When we import something like this::
 
@@ -143,7 +136,6 @@ class YAMLProjectData:
 			return None
 
 		toplevel_sub = os.path.join(self.subsystem_path, rel_subparts[0])
-		logging.warning(f"Got toplevel sub for {rel_subparts[0]} of {toplevel_sub}")
 		if toplevel_sub is None:
 			return None
 		return os.path.join(self.project_path, toplevel_sub, "/".join(rel_subparts[1:])).rstrip("/")
@@ -156,25 +148,88 @@ class PluginDirectory(ModuleType):
 	parent directories.)
 	"""
 
-	def __init__(self, fullname, path=None, importer=None):
+	def __init__(self, sub_nspath, fullname, path=None, finder=None):
 		super().__init__(fullname)
-		self.path = path
-		self.importer = importer
+		self.sub_nspath = sub_nspath
+		self.path = self.__file__ = path
+		self.finder = finder
+		self.initialized = False
+
+	def initialize(self):
+		if self.initialized:
+			return
+		init_path = os.path.join(self.path, "init.py")
+		if not os.path.exists(init_path):
+			self.initialized = True
+			return
+
+		mod = load_plugin(init_path, "init")
+		init_func = getattr(mod, "__init__", None)
+		if init_func is not None and isinstance(init_func, types.FunctionType):
+			model = self.finder.hub.get_model(self.sub_nspath)
+			try:
+				init_func(self.finder.hub, **model)
+			except TypeError as te:
+				raise TypeError(f"Init via {init_path}: {str(te)}")
+		self.initialized = True
 
 	def __iter__(self):
 		"""
-		This method implements the ability for developers to iterate through plugins in a sub. See
-		``tests/test_import_iter.py`` for an example of how this can be used.
+		This method implements the ability for developers to iterate through plugins in a sub.
+
+		For example::
+
+		  import dyne.org.funtoo.powerbus.mysub as mysub
+		  for plugin in mysub:
+		      mysub.do_something()
+
+		Also see``tests/test_import_iter.py`` for an example of how this can be used.
 		"""
-		if self.path is not None:
+		if not self.initialized:
+			self.initialize()
+		if self.__file__ is not None:
 			for file in os.listdir(self.path):
 				if file.endswith(".py"):
-					if file != "__init__.py":
-						modname = file[:-3]
-						try:
-							yield getattr(self, modname)
-						except AttributeError:
-							yield self.importer.load_module(self.__name__ + "." + modname)
+					if file not in ["__init__.py", "init.py"]:
+						fullname = f"{self.__name__}.{file[:-3]}"
+						mod = sys.modules.get(fullname, None)
+						if mod:
+							yield mod
+						else:
+							yield self.finder.load_module(fullname)
+
+	def __getattr__(self, key):
+		"""
+		This method enables the ability to automatically reference plugins from a sub. For example, you
+		can import just the sub::
+
+		  import dyne.org.funtoo.powerbus.foo as foo
+
+		And then you can access a plugin as follows::
+
+		  foo.myplugin.do_something()
+
+		Behind the scenes, we leverage the DyneFinder to load the plugin dynamically using our official Dyne
+		loading mechanism.
+
+		Without this method, this would not work and instead you would have to directly import the plugin::
+
+		  import dyne.org.funtoo.powerbus.foo.myplugin
+		  myplugin.do_something()
+
+		While auto-loading is a super-important convenience feature, this latter method of importing a
+		plugin directly is also supported if it makes sense in certain circumstances, or fits the design
+		of your code. However, doing this *will* bypass subsystem initialization code that you might have
+		defined in ``init.py``, and will also bypass retrieval/initialization of a model.
+		"""
+		if not self.initialized:
+			self.initialize()
+		fullname = f"{self.__name__}.{key}"
+		mod = sys.modules.get(fullname, None)
+		if mod:
+			return mod
+		else:
+			return self.finder.load_module(fullname)
 
 
 class DyneFinder:
@@ -197,7 +252,6 @@ class DyneFinder:
 			self.plugin_path = os.getcwd()
 		else:
 			self.plugin_path = plugin_path
-		logging.warning(f"Initialized plugin path as {self.plugin_path}")
 		self.yaml_search_dict = {}
 		self.init_yaml_loader()
 
@@ -230,7 +284,6 @@ class DyneFinder:
 		:return: "sub", "plugin", or None
 		:rtype: str
 		"""
-		logging.warning(f"Identify: looking at {partial_path}")
 		try:
 			farf = os.stat(partial_path, follow_symlinks=True)
 			if stat.S_ISDIR(farf.st_mode):
@@ -255,22 +308,20 @@ class DyneFinder:
 			return mod
 
 		ns_relpath = ".".join(full_split[:3])  # "org.funtoo.powerbus"
-		sub_relpath = ns_relpath + "/" + "/".join(full_split[3:])  # "org.funtoo.powerbus/system"
+		sub_nspath = ns_relpath + "/" + "/".join(full_split[3:])  # "org.funtoo.powerbus/system"
 
 		if ns_relpath in self.yaml_search_dict:
 			# We found a project referenced in PYTHONPATH. Look in it for the plugin.
 			yaml_obj = self.yaml_search_dict[ns_relpath]
-			logging.warning(f"Attempting to resolve {full_split[3:]}")
 			partial_path = yaml_obj.resolve_relative_subsystem(full_split[3:])
 
 		else:
 			# Otherwise, look in our canonical plugin path.
-			partial_path = os.path.join(self.plugin_path, sub_relpath)
+			partial_path = os.path.join(self.plugin_path, sub_nspath)
 
 		if partial_path is None:
 			raise ModuleNotFoundError(f"DyneFinder couldn't find {fullname}")
 
-		logging.warning(f"Partial path {partial_path}")
 		# partial_path may point to a subsystem, or a python plugin (.py). We need to figure out which:
 
 		mod_type = self.identify_mod_type(partial_path)
@@ -281,22 +332,16 @@ class DyneFinder:
 			loader.exec_module(mod)
 			if self.hub:
 				# do hub/model injection -- as long as we find a hub/model defined (typically set to None)
+				# TODO: some customization of hub/model injection by end-user would be cool
 				mod.__sub__ = ns_relpath
-				if getattr(mod, "hub", "MISSING") != "MISSING":
-					mod.hub = self.hub
-				if getattr(mod, "model", "MISSING") != "MISSING":
-					mod.model = self.hub.get_model(sub_relpath)
-					if mod.model is None:
-						raise AttributeError(f"Model {sub_relpath} must be initialized via hub.set_model().")
-
-				init_func = getattr(mod, "__init__", None)
-				if init_func is not None and isinstance(init_func, types.FunctionType):
-					init_func()
-
+				# *ALWAYS* inject the hub.
+				mod.hub = self.hub
 		elif mod_type == "sub":
-			mod = sys.modules[fullname] = PluginDirectory(fullname, path=partial_path, importer=self)
+			mod = sys.modules[fullname] = PluginDirectory(sub_nspath, fullname, path=partial_path, finder=self)
 			mod.__path__ = []
 		else:
-			raise ModuleNotFoundError(f"DyneFinder couldn't find the specified plugin or subsystem inside {ns_relpath}")
+			raise ModuleNotFoundError(
+				f'DyneFinder couldn\'t find the specified plugin or subsystem "{fullname}" inside {ns_relpath}'
+			)
 
 		return mod

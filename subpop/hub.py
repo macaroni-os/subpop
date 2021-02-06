@@ -7,6 +7,9 @@ import os
 import sys
 import threading
 from typing import Any
+
+from dict_tools.data import NamespaceDict
+
 from subpop.util import DyneFinder
 
 
@@ -19,27 +22,30 @@ class DeferredModel(dict):
 	"""
 
 	def __init__(self, hub=None, sub=None):
-		self["_hub"] = hub
-		self["_sub"] = sub
-		self["_model"] = None
+		self.__hub__ = hub
+		self.__sub__ = sub
+		self.__model__ = None
 		super().__init__()
 
 	def __setitem__(self, k, v):
 		super().__setitem__(k, v)
 
 	def __setattr__(self, k: str, v: Any):
-		self[k] = v
+		if k.startswith("__"):
+			super().__setattr__(k, v)
+		else:
+			self[k] = v
 
 	def merge(self):
-		self["_model"] = self["_hub"].__get_real_model__(self["_sub"])
+		self.__model__ = self.__hub__.__get_real_model__(self.__sub__)
 		for k, v in self["_model"].items():
 			self[k] = v
 
 	def __getattr__(self, k: str):
-		if self["_model"] is None:
+		if self.__model__ is None:
 			self.merge()
 		if k not in self:
-			raise AttributeError(f"Make sure you have set a model for {self['_sub']} using hub.set_model().")
+			raise AttributeError(f"Make sure you have set a model for {self.__sub__} using hub.set_model().")
 		return self[k]
 
 	def __copy__(self):
@@ -166,7 +172,7 @@ class Hub(dict):
 		if name not in self:
 			frame = inspect.stack()[1]
 			filename_of_caller = os.path.realpath(frame[0].f_code.co_filename)
-			raise AttributeError(f"{filename_of_caller} could not find {name} not found on hub.")
+			raise AttributeError(f"{filename_of_caller}, in {frame[3]}(): hub.{name} is not defined.")
 		return self[name]
 
 	def __setattr__(self, key, val):
@@ -195,7 +201,7 @@ class Hub(dict):
 		except KeyError:
 			return None
 
-	def set_model(self, sub, model):
+	def set_model(self, sub, **kwargs):
 		"""
 		This method is used to set a model for a specific plugin. If a plugin has a "model = None" in the
 		global namespace, then during hub injection, we will inject a ``DeferredModel()`` into the plugin as
@@ -208,7 +214,7 @@ class Hub(dict):
 		:param model: The model to set for the plugin, typically a NamespaceDict.
 		:type model: NamespaceDict
 		"""
-		self._models[sub] = model
+		self._models[sub] = kwargs
 
 
 # vim: ts=4 sw=4 noet
