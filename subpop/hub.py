@@ -141,29 +141,12 @@ class Hub(dict):
 		self[key] = val
 
 	def get_model(self, sub):
-		"""
-		This is called by our hub model-mapping code, to grab a DeferredModel() to inject into a plugin.
-
-		We store an internal dict of instances so we will always return the same model once instantiated.
-		This will, in theory, allow other plugins to safely call get_model() again to grab the model of
-		another plugin, after it has been injected into that other plugin.
-		"""
-		return self._models[sub]
+		try:
+			return self._models[sub]
+		except KeyError:
+			return {}
 
 	def set_model(self, sub, **kwargs):
-		"""
-		This method is used to set a model for a specific plugin. If a plugin has a "model = None" in the
-		global namespace, then during hub injection, we will inject a ``DeferredModel()`` into the plugin as
-		well. This ``DeferredModel()`` will allow the model set by this method to be accessed by the plugin.
-
-		Typically, the model is a ``NamespaceDict()``.
-
-		:param sub: The string namespaced "sub path", such as "org.funtoo.powerbus/system".
-		:type sub: str
-		:param model: The model to set for the plugin, typically a NamespaceDict.
-		:type model: NamespaceDict
-		"""
-
 		self._models[sub] = kwargs
 		logging.warning(f"Setting self._models[sub] to {self._models[sub]}")
 
