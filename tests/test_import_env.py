@@ -15,6 +15,6 @@ def test_import_env():
 	if not hasattr(sys, "frozen"):
 		sys.meta_path.append(DyneFinder())
 
-	import dyne.org.funtoo.anotherproject.mysub.foo as foo
+	import dyne.org.funtoo.anotherproject.mysub as mysub
 
-	assert foo.FOOBAR == "oni"
+	assert mysub.foo.FOOBAR == "oni"

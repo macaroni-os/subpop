@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import inspect
+import logging
 import os
 import sys
 import threading
@@ -11,45 +12,6 @@ from typing import Any
 from dict_tools.data import NamespaceDict
 
 from subpop.util import DyneFinder
-
-
-class DeferredModel(dict):
-	"""
-	We need to assign a model to a sub, possibly before the caller has actually set the model.
-	This class allows the model to be pulled in upon first access of an attribute.
-
-	If this auto-feature isn't sufficient for you, call ``model.merge()`` before first use.
-	"""
-
-	def __init__(self, hub=None, sub=None):
-		self.__hub__ = hub
-		self.__sub__ = sub
-		self.__model__ = None
-		super().__init__()
-
-	def __setitem__(self, k, v):
-		super().__setitem__(k, v)
-
-	def __setattr__(self, k: str, v: Any):
-		if k.startswith("__"):
-			super().__setattr__(k, v)
-		else:
-			self[k] = v
-
-	def merge(self):
-		self.__model__ = self.__hub__.__get_real_model__(self.__sub__)
-		for k, v in self["_model"].items():
-			self[k] = v
-
-	def __getattr__(self, k: str):
-		if self.__model__ is None:
-			self.merge()
-		if k not in self:
-			raise AttributeError(f"Make sure you have set a model for {self.__sub__} using hub.set_model().")
-		return self[k]
-
-	def __copy__(self):
-		return {k: copy.copy(v) for k, v in self.items()}
 
 
 class Hub(dict):
@@ -186,20 +148,7 @@ class Hub(dict):
 		This will, in theory, allow other plugins to safely call get_model() again to grab the model of
 		another plugin, after it has been injected into that other plugin.
 		"""
-		if sub not in self._deferred_models:
-			self._deferred_models[sub] = DeferredModel(hub=self, sub=sub)
-		return self._deferred_models[sub]
-
-	def __get_real_model__(self, sub):
-		"""
-		This method is called by the ``DeferredModel`` class, when trying to grab the actual underlying model
-		that has been set by set_model(). It will return None if no model has been set, which ``DeferredModel``
-		will use to identify this scenario.
-		"""
-		try:
-			return self._models[sub]
-		except KeyError:
-			return None
+		return self._models[sub]
 
 	def set_model(self, sub, **kwargs):
 		"""
@@ -214,7 +163,9 @@ class Hub(dict):
 		:param model: The model to set for the plugin, typically a NamespaceDict.
 		:type model: NamespaceDict
 		"""
+
 		self._models[sub] = kwargs
+		logging.warning(f"Setting self._models[sub] to {self._models[sub]}")
 
 
 # vim: ts=4 sw=4 noet

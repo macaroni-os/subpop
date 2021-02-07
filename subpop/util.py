@@ -168,6 +168,7 @@ class PluginDirectory(ModuleType):
 		if init_func is not None and isinstance(init_func, types.FunctionType):
 			model = self.finder.hub.get_model(self.sub_nspath)
 			try:
+				logging.warning(f"Passing {model} to init_func")
 				init_func(self.finder.hub, **model)
 			except TypeError as te:
 				raise TypeError(f"Init via {init_path}: {str(te)}")
@@ -329,7 +330,14 @@ class DyneFinder:
 		if mod_type == "plugin":
 			loader = importlib.machinery.SourceFileLoader(fullname, partial_path + ".py")
 			mod = sys.modules[fullname] = types.ModuleType(loader.name)
-			loader.exec_module(mod)
+			try:
+				loader.exec_module(mod)
+			except BaseException as be:
+				try:
+					del sys.modules[fullname]
+				except KeyError:
+					pass
+				raise be
 			if self.hub:
 				# do hub/model injection -- as long as we find a hub/model defined (typically set to None)
 				# TODO: some customization of hub/model injection by end-user would be cool

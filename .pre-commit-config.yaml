@@ -13,10 +13,10 @@ repos:
         args: [--fix=lf]
         language_version: python3
       - id: end-of-file-fixer     # Makes sure files end in a newline and only a newline.
-        exclude: tests/fake_.*\.key
         language_version: python3
       - id: check-ast             # Simply check whether files parse as valid python.
         language_version: python3
+        exclude: tests/.*/.*_error\.py
       - id: check-yaml
       - id: check-json
   -   repo: https://github.com/jleclanche/tan
@@ -25,3 +25,4 @@ repos:
       - id: black
         language_version: python3
         args: [--line-length=119, --use-tabs]
+        exclude: tests/.*/.*_error\.py

@@ -43,6 +43,10 @@ master_doc = "index"
 
 import sphinx_funtoo_theme
 
-extensions = ["sphinx_funtoo_theme", "sphinx.ext.autosectionlabel", "sphinx.ext.autodoc"]
+extensions = [
+	"sphinx_funtoo_theme",
+	"sphinx.ext.autosectionlabel",
+	"sphinx.ext.autodoc",
+]
 
 html_theme = "sphinx_funtoo_theme"
