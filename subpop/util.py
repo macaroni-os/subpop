@@ -106,8 +106,8 @@ class YAMLProjectData:
 		return os.path.dirname(self.yaml_path)
 
 	@property
-	def subsystem_path(self):
-		return self.yaml_dat["subsystems"]["path"]
+	def root_path(self):
+		return os.path.join(self.project_path, self.yaml_dat["root"])
 
 	def resolve_relative_subsystem(self, rel_subparts):
 		"""
@@ -133,12 +133,9 @@ class YAMLProjectData:
 		"""
 
 		if not len(rel_subparts):
-			return None
-
-		toplevel_sub = os.path.join(self.subsystem_path, rel_subparts[0])
-		if toplevel_sub is None:
-			return None
-		return os.path.join(self.project_path, toplevel_sub, "/".join(rel_subparts[1:])).rstrip("/")
+			return self.root_path
+		else:
+			return os.path.join(self.root_path, "/".join(rel_subparts)).rstrip("/")
 
 
 class PluginDirectory(ModuleType):
@@ -303,19 +300,23 @@ class DyneFinder:
 
 		full_split = fullname.split(".")[1:]  # [ "org", "funtoo", "powerbus", "system" ]
 
-		if fullname == self.prefix or len(full_split) < 4:
+		# "org.funtoo.powerbus" is allowed to be imported as well -- as a root subsystem.
+
+		if fullname == self.prefix or len(full_split) < 3:
 			mod = sys.modules[fullname] = types.ModuleType(fullname)
 			mod.__path__ = []
 			return mod
 
 		ns_relpath = ".".join(full_split[:3])  # "org.funtoo.powerbus"
-		sub_nspath = ns_relpath + "/" + "/".join(full_split[3:])  # "org.funtoo.powerbus/system"
+
+		sub_nspath = ns_relpath
+		if len(full_split) > 3:
+			sub_nspath = sub_nspath + "/" + "/".join(full_split[3:])  # "org.funtoo.powerbus/system"
 
 		if ns_relpath in self.yaml_search_dict:
 			# We found a project referenced in PYTHONPATH. Look in it for the plugin.
 			yaml_obj = self.yaml_search_dict[ns_relpath]
 			partial_path = yaml_obj.resolve_relative_subsystem(full_split[3:])
-
 		else:
 			# Otherwise, look in our canonical plugin path.
 			partial_path = os.path.join(self.plugin_path, sub_nspath)
