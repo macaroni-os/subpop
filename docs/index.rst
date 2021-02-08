@@ -2,7 +2,12 @@ Welcome to Subpop
 =================
 
 Subpop is a framework designed to advance the paradigm of Plugin-Oriented Programming, and is designed to be an
-evolution and refinement of the concepts in POP_.
+evolution and refinement of the concepts in POP_. While this is an independently-developed work, it is heavily
+inspired by the concepts explored in POP. The goal of subpop is to refine the design of POP to a very significant
+degree, in order to make it better achieve the goals of plugin-oriented programming, which is to provide a
+useful framework for developing software at scale. In pursuing this goal, subpop will happily re-design or
+even jettison features that the author feels will ultimately make subpop less reliable or large-scale software
+projects messier.
 
 See :ref:`What is Subpop?` for more details on what is and what it can do for you.
 

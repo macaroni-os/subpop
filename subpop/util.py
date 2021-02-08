@@ -4,6 +4,7 @@ import logging
 import os
 import stat
 import sys
+import threading
 import types
 from types import ModuleType
 import yaml
@@ -56,8 +57,8 @@ def load_plugin(path, name):
 	loader = importlib.machinery.SourceFileLoader("adhoc_module." + name, path)
 	mod = types.ModuleType(loader.name)
 	loader.exec_module(mod)
+	mod.__file__ = path
 	return mod
-	# TODO: perform hub injection!
 
 
 def _find_subpop_yaml(dir_of_caller):
@@ -252,6 +253,7 @@ class DyneFinder:
 			self.plugin_path = plugin_path
 		self.yaml_search_dict = {}
 		self.init_yaml_loader()
+		self.thread_id = threading.get_ident()
 
 	def init_yaml_loader(self):
 		if "PYTHONPATH" in os.environ:
@@ -295,6 +297,13 @@ class DyneFinder:
 				pass
 
 	def load_module(self, fullname):
+		cur_thread_id = threading.get_ident()
+		if cur_thread_id != self.thread_id:
+			raise ImportError(
+				f"Attempt to load plugin {fullname} in thread {cur_thread_id} but Hub/loader was started "
+				f"in thread {self.thread_id}. This is not safe. Please ensure all necessary modules are "
+				"loaded ahead of starting a thread. This can be done by iterating through plugins."
+			)
 
 		# Let's assume fullname is "dyne.org.funtoo.powerbus.system".
 
@@ -328,6 +337,14 @@ class DyneFinder:
 
 		mod_type = self.identify_mod_type(partial_path)
 
+		# Let's see if the module has already been loaded:
+
+		mod = getattr(sys.modules, fullname, None)
+		if mod is not None:
+			return mod
+
+		# OK, not loaded -- let's load it.
+
 		if mod_type == "plugin":
 			loader = importlib.machinery.SourceFileLoader(fullname, partial_path + ".py")
 			mod = sys.modules[fullname] = types.ModuleType(loader.name)
@@ -343,6 +360,7 @@ class DyneFinder:
 				# do hub/model injection -- as long as we find a hub/model defined (typically set to None)
 				# TODO: some customization of hub/model injection by end-user would be cool
 				mod.__sub__ = ns_relpath
+				mod.__file__ = partial_path + ".py"
 				# *ALWAYS* inject the hub.
 				mod.hub = self.hub
 		elif mod_type == "sub":

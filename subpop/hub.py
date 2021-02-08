@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
 
 import asyncio
-import copy
 import inspect
 import logging
 import os
 import sys
 import threading
-from typing import Any
-
-from dict_tools.data import NamespaceDict
 
 from subpop.util import DyneFinder
 
