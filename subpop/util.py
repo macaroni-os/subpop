@@ -169,6 +169,12 @@ class PluginDirectory(ModuleType):
 			try:
 				logging.warning(f"Passing {model} to init_func")
 				# TODO: make this thread-safe so it only gets called once.
+				# TODO: two things -- one, track what gets written to the hub. It's a good thing to do.
+				#       second -- when we do a getattr on the hub, and get an AttributeError, look at any
+				#       pending initializations, and run the right one. Then in a main thread, we can
+				#       do a .set_model() and immediately try to use something added to the hub, and this
+				#       will trigger the init function for the subsystem. Maybe some kind of declarative
+				#       mechanism so a subsystem can define what it will be adding? More exploration here.
 				init_func(self.finder.hub, **model)
 			except TypeError as te:
 				raise TypeError(f"Init via {init_path}: {str(te)}")
