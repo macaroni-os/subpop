@@ -168,6 +168,7 @@ class PluginDirectory(ModuleType):
 			model = self.finder.hub.get_model(self.sub_nspath)
 			try:
 				logging.warning(f"Passing {model} to init_func")
+				# TODO: make this thread-safe so it only gets called once.
 				init_func(self.finder.hub, **model)
 			except TypeError as te:
 				raise TypeError(f"Init via {init_path}: {str(te)}")
