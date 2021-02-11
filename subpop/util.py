@@ -6,6 +6,7 @@ import stat
 import sys
 import threading
 import types
+from collections import defaultdict
 from types import ModuleType
 import yaml
 
@@ -254,6 +255,8 @@ class DyneFinder:
 		self.yaml_search_dict = {}
 		self.init_yaml_loader()
 		self.thread_id = threading.get_ident()
+		self.mod_path_lock = defaultdict(lambda: threading.Lock())
+		self.lock = threading.Lock()
 
 	def init_yaml_loader(self):
 		if "PYTHONPATH" in os.environ:
@@ -289,21 +292,33 @@ class DyneFinder:
 			if stat.S_ISDIR(farf.st_mode):
 				return "sub"
 		except FileNotFoundError:
-			try:
-				farf = os.stat(partial_path + ".py", follow_symlinks=True)
-				if stat.S_ISREG(farf.st_mode):
-					return "plugin"
-			except FileNotFoundError:
-				pass
+			# This will raise FileNotFound exception if this file doesn't exist.
+			farf = os.stat(partial_path + ".py", follow_symlinks=True)
+			if stat.S_ISREG(farf.st_mode):
+				return "plugin"
 
 	def load_module(self, fullname):
+		# do a lock before using our mod_path_lock to acquire a lock!
+		self.lock.acquire()
+		with self.mod_path_lock[fullname]:
+			self.lock.release()
+			result = self.really_load_module(fullname)
+		return result
+
+	@property
+	def thread_str(self):
 		cur_thread_id = threading.get_ident()
-		if cur_thread_id != self.thread_id:
-			raise ImportError(
-				f"Attempt to load plugin {fullname} in thread {cur_thread_id} but Hub/loader was started "
-				f"in thread {self.thread_id}. This is not safe. Please ensure all necessary modules are "
-				"loaded ahead of starting a thread. This can be done by iterating through plugins."
-			)
+		if cur_thread_id == self.thread_id:
+			return ""
+		else:
+			return f"(thread id {cur_thread_id})"
+
+	def really_load_module(self, fullname):
+		# Let's see if the module has already been loaded:
+
+		mod = getattr(sys.modules, fullname, None)
+		if mod is not None:
+			return mod
 
 		# Let's assume fullname is "dyne.org.funtoo.powerbus.system".
 
@@ -335,15 +350,12 @@ class DyneFinder:
 
 		# partial_path may point to a subsystem, or a python plugin (.py). We need to figure out which:
 
-		mod_type = self.identify_mod_type(partial_path)
-
-		# Let's see if the module has already been loaded:
-
-		mod = getattr(sys.modules, fullname, None)
-		if mod is not None:
-			return mod
-
-		# OK, not loaded -- let's load it.
+		try:
+			mod_type = self.identify_mod_type(partial_path)
+		except FileNotFoundError:
+			raise ModuleNotFoundError(
+				f'DyneFinder couldn\'t find the specified plugin or subsystem "{fullname}" -- looked for {partial_path}(.py) {self.thread_str}'
+			)
 
 		if mod_type == "plugin":
 			loader = importlib.machinery.SourceFileLoader(fullname, partial_path + ".py")
@@ -366,9 +378,5 @@ class DyneFinder:
 		elif mod_type == "sub":
 			mod = sys.modules[fullname] = PluginDirectory(sub_nspath, fullname, path=partial_path, finder=self)
 			mod.__path__ = []
-		else:
-			raise ModuleNotFoundError(
-				f'DyneFinder couldn\'t find the specified plugin or subsystem "{fullname}" inside {ns_relpath}'
-			)
 
 		return mod
