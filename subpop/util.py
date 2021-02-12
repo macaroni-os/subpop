@@ -140,6 +140,14 @@ class YAMLProjectData:
 			return os.path.join(self.root_path, "/".join(rel_subparts)).rstrip("/")
 
 
+class AttrDict(dict):
+	def __getattr__(self, key):
+		return self[key]
+
+	def __setattr__(self, key, value):
+		self[key] = value
+
+
 class PluginSubsystem(ModuleType):
 	"""
 	This class is an extension of the python ``ModuleType`` class, and adds some additional functionality
@@ -153,6 +161,17 @@ class PluginSubsystem(ModuleType):
 		self.path = self.__file__ = path
 		self.finder = finder
 		self.initialized = False
+		self.config = {}
+		self._model = AttrDict()
+
+	@property
+	def model(self):
+		if not self.initialized:
+			self.initialize()
+		return self._model
+
+	def apply_config(self, **kwargs):
+		self.config = kwargs
 
 	def initialize(self):
 		if self.initialized:
@@ -165,17 +184,10 @@ class PluginSubsystem(ModuleType):
 		mod = load_plugin(init_path, "init")
 		init_func = getattr(mod, "__init__", None)
 		if init_func is not None and isinstance(init_func, types.FunctionType):
-			model = self.finder.hub.get_model(self.sub_nspath)
 			try:
-				logging.warning(f"Passing {model} to init_func")
+				logging.warning(f"Passing {self.config} to init_func")
 				# TODO: make this thread-safe so it only gets called once.
-				# TODO: two things -- one, track what gets written to the hub. It's a good thing to do.
-				#       second -- when we do a getattr on the hub, and get an AttributeError, look at any
-				#       pending initializations, and run the right one. Then in a main thread, we can
-				#       do a .set_model() and immediately try to use something added to the hub, and this
-				#       will trigger the init function for the subsystem. Maybe some kind of declarative
-				#       mechanism so a subsystem can define what it will be adding? More exploration here.
-				init_func(self, **model)
+				init_func(self._model, **self.config)
 			except TypeError as te:
 				raise TypeError(f"Init via {init_path}: {str(te)}")
 		self.initialized = True

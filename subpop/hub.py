@@ -40,8 +40,6 @@ class Hub(dict):
 	def __init__(self, finder=None):
 		super().__init__()
 		self._thread_ctx = threading.local()
-		self._models = {}
-		self._deferred_models = {}
 		try:
 			self._thread_ctx._loop = asyncio.get_running_loop()
 		except RuntimeError:
@@ -135,16 +133,6 @@ class Hub(dict):
 
 	def __setattr__(self, key, val):
 		self[key] = val
-
-	def get_model(self, sub):
-		try:
-			return self._models[sub]
-		except KeyError:
-			return {}
-
-	def set_model(self, sub, **kwargs):
-		self._models[sub] = kwargs
-		logging.warning(f"Setting self._models[sub] to {self._models[sub]}")
 
 
 # vim: ts=4 sw=4 noet
