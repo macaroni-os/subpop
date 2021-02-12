@@ -140,7 +140,7 @@ class YAMLProjectData:
 			return os.path.join(self.root_path, "/".join(rel_subparts)).rstrip("/")
 
 
-class PluginDirectory(ModuleType):
+class PluginSubsystem(ModuleType):
 	"""
 	This class is an extension of the python ``ModuleType`` class, and adds some additional functionality
 	for subpop. ``DyneFinder`` uses this to define module directories that are plugin systems (or their
@@ -175,7 +175,7 @@ class PluginDirectory(ModuleType):
 				#       do a .set_model() and immediately try to use something added to the hub, and this
 				#       will trigger the init function for the subsystem. Maybe some kind of declarative
 				#       mechanism so a subsystem can define what it will be adding? More exploration here.
-				init_func(self.finder.hub, **model)
+				init_func(self, **model)
 			except TypeError as te:
 				raise TypeError(f"Init via {init_path}: {str(te)}")
 		self.initialized = True
@@ -383,7 +383,7 @@ class DyneFinder:
 				# *ALWAYS* inject the hub.
 				mod.hub = self.hub
 		elif mod_type == "sub":
-			mod = sys.modules[fullname] = PluginDirectory(sub_nspath, fullname, path=partial_path, finder=self)
+			mod = sys.modules[fullname] = PluginSubsystem(sub_nspath, fullname, path=partial_path, finder=self)
 			mod.__path__ = []
 
 		return mod

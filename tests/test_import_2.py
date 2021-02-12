@@ -21,5 +21,5 @@ def test_import_2():
 	hub = Hub(finder=DyneFinder(plugin_path=plugin_dir))
 	import dyne.org.funtoo.powerbus as powerbus
 
-	assert isinstance(powerbus, subpop.util.PluginDirectory)
+	assert isinstance(powerbus, subpop.util.PluginSubsystem)
 	assert powerbus.baselevel.basevar == "123"
