@@ -1,2 +1,5 @@
+import dyne.org.funtoo.anotherproject.model_sub as model_sub
+
+
 def get_release():
-	return hub.RELEASE
+	return model_sub.model.RELEASE

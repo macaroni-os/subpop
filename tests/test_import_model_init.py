@@ -14,5 +14,5 @@ def test_model_init():
 
 	import dyne.org.funtoo.anotherproject.model_sub as model_sub
 
-	hub.set_model("org.funtoo.anotherproject/model_sub", release="1.4-release")
+	model_sub.apply_config(release="1.4-release")
 	assert model_sub.first.get_release() == "1.4-release"

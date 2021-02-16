@@ -1,3 +1,3 @@
-def __init__(hub, release=None):
+def __init__(model, release=None):
 	assert release is not None
-	hub.RELEASE = release
+	model.RELEASE = release
