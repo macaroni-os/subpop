@@ -10,6 +10,12 @@ from collections import defaultdict
 from types import ModuleType
 import yaml
 
+PREFIX = "/usr"
+
+
+def get_root_plugin_path():
+	return f"{PREFIX}/lib/python{sys.version_info.major}.{sys.version_info.minor}/subpop"
+
 
 # TODO: DyneFinder does not find multiple dynes and doesn't merge them yet. This needs some redesign.
 
@@ -54,7 +60,6 @@ def load_plugin(path, name):
 	:return: the actual loaded plugin
 	:rtype: :meth:`importlib.util.ModuleType`
 	"""
-	# TODO: dynamically generate module name?
 	loader = importlib.machinery.SourceFileLoader("adhoc_module." + name, path)
 	mod = types.ModuleType(loader.name)
 	loader.exec_module(mod)
@@ -80,7 +85,26 @@ def _find_subpop_yaml(dir_of_caller):
 	return subpop_yaml
 
 
-class YAMLProjectData:
+class ProjectData:
+	"""
+	This class is used to map a namespace inside /usr/lib/pythonx.y/subpop, so it can be found by the
+	DyneFinder.
+	"""
+
+	def __init__(self, base_path, namespace):
+		self.base_path = base_path
+		self.namespace = namespace
+		self.full_path = os.path.join(self.base_path, self.namespace)
+
+	def resolve_relative_subsystem(self, rel_subparts):
+
+		if not len(rel_subparts):
+			return self.full_path
+		else:
+			return os.path.join(self.full_path, "/".join(rel_subparts)).rstrip("/")
+
+
+class YAMLProjectData(ProjectData):
 	"""
 	This class is used to encapsulate the ``subpop.yaml`` file, so there are easy properties and accessor
 	methods for accessing the data inside the file. Constructor takes a single argument which is the path
@@ -231,15 +255,14 @@ class PluginSubsystem(ModuleType):
 		Behind the scenes, we leverage the DyneFinder to load the plugin dynamically using our official Dyne
 		loading mechanism.
 
-		Without this method, this would not work and instead you would have to directly import the plugin::
+		However, you typically DON'T want to import the plugin, as this example does::
 
 		  import dyne.org.funtoo.powerbus.foo.myplugin
 		  myplugin.do_something()
 
-		While auto-loading is a super-important convenience feature, this latter method of importing a
-		plugin directly is also supported if it makes sense in certain circumstances, or fits the design
-		of your code. However, doing this *will* bypass subsystem initialization code that you might have
-		defined in ``init.py``, and will also bypass retrieval/initialization of a model.
+		Technically, it will work. However, doing this *will* bypass subsystem initialization code in
+		``init.py``, as well as mapping your config to your model, so it's strongly discouraged.
+
 		"""
 		if not self.initialized:
 			self.initialize()
@@ -278,6 +301,20 @@ class DyneFinder:
 		self.lock = threading.Lock()
 
 	def init_yaml_loader(self):
+
+		# This adds all plugins that are in /usr/lib/pythonx.y/subpop:
+
+		plugin_root = get_root_plugin_path()
+		try:
+			for namespace in os.listdir(plugin_root):
+				self.yaml_search_dict[namespace] = ProjectData(plugin_root, namespace)
+		except FileNotFoundError:
+			pass
+		except PermissionError:
+			logging.warning(f"Unable to read {plugin_root} due to insufficient permissions.")
+
+		# This adds all plugins mapped via PYTHONPATH:
+
 		if "PYTHONPATH" in os.environ:
 			ppath_split = os.environ["PYTHONPATH"].split(":")
 			for path in ppath_split:
