@@ -2,42 +2,11 @@
 
 import asyncio
 import inspect
-import logging
 import os
 import sys
 import threading
 
 from subpop.util import DyneFinder
-
-
-class HubProperty:
-	def __init__(self, fn):
-		self.fn = fn
-		self.hub = None
-		self.initialized = False
-
-	async def initialize(self):
-		if self.initialized:
-			return
-		self.initialized = True
-
-	def get(self, hub):
-		self.hub = hub
-		return self.fn()
-
-
-class DeferredHubProperty(HubProperty):
-	def __init__(self, fn):
-		super().__init__(fn)
-		self.final_value = None
-
-	async def initialize(self):
-		if self.initialized:
-			return
-		self.final_value = await self.fn()
-
-	def get(self, hub):
-		return self.final_value
 
 
 class Hub(dict):
@@ -159,13 +128,7 @@ class Hub(dict):
 			frame = inspect.stack()[1]
 			filename_of_caller = os.path.realpath(frame[0].f_code.co_filename)
 			raise AttributeError(f"{filename_of_caller}, in {frame[3]}(): hub.{name} is not defined.")
-		if isinstance(self[name], HubProperty):
-			return self[name].get(self)
 		return self[name]
-
-	async def add_property(self, name, hub_prop):
-		self[name] = hub_prop
-		await self[name].initialize()
 
 	def __setattr__(self, key, val):
 		self[key] = val
