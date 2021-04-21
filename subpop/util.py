@@ -171,13 +171,22 @@ class AttrDict(dict):
 	def __setattr__(self, key, value):
 		self[key] = value
 
+subsystems = {}
 
 class PluginSubsystem(ModuleType):
 	"""
 	This class is an extension of the python ``ModuleType`` class, and adds some additional functionality
 	for subpop. ``DyneFinder`` uses this to define module directories that are plugin systems (or their
 	parent directories.)
+
+	Do not instantiate these directly. Use get_subsystem().
 	"""
+
+	@classmethod
+	def get_subsystem(cls, sub_nspath, fullname, path=None, finder=None):
+		if fullname not in subsystems:
+			subsystems[fullname] = cls(sub_nspath, fullname, path=path, finder=finder)
+		return subsystems[fullname]
 
 	def __init__(self, sub_nspath, fullname, path=None, finder=None):
 		super().__init__(fullname)
@@ -187,6 +196,7 @@ class PluginSubsystem(ModuleType):
 		self.initialized = False
 		self.config = {}
 		self._model = AttrDict()
+		self.access_lock = threading.Lock()
 
 	@property
 	def model(self):
@@ -264,14 +274,15 @@ class PluginSubsystem(ModuleType):
 		``init.py``, as well as mapping your config to your model, so it's strongly discouraged.
 
 		"""
-		if not self.initialized:
-			self.initialize()
-		fullname = f"{self.__name__}.{key}"
-		mod = sys.modules.get(fullname, None)
-		if mod:
-			return mod
-		else:
-			return self.finder.load_module(fullname)
+		with self.access_lock:
+			if not self.initialized:
+				self.initialize()
+			fullname = f"{self.__name__}.{key}"
+			mod = sys.modules.get(fullname, None)
+			if mod:
+				return mod
+			else:
+				return self.finder.load_module(fullname)
 
 
 class DyneFinder:
@@ -432,7 +443,7 @@ class DyneFinder:
 				# *ALWAYS* inject the hub.
 				mod.hub = self.hub
 		elif mod_type == "sub":
-			mod = sys.modules[fullname] = PluginSubsystem(sub_nspath, fullname, path=partial_path, finder=self)
+			mod = sys.modules[fullname] = PluginSubsystem.get_subsystem(sub_nspath, fullname, path=partial_path, finder=self)
 			mod.__path__ = []
 
 		return mod
