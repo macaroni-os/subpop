@@ -171,7 +171,9 @@ class AttrDict(dict):
 	def __setattr__(self, key, value):
 		self[key] = value
 
+
 subsystems = {}
+
 
 class PluginSubsystem(ModuleType):
 	"""
@@ -181,6 +183,20 @@ class PluginSubsystem(ModuleType):
 
 	Do not instantiate these directly. Use get_subsystem().
 	"""
+
+	# See notes in __getattr__ about the use of this lock, below:
+
+	meta_lock = threading.Lock()
+	access_locks = {}
+
+	def get_access_lock(self, fullname):
+		if fullname in self.access_locks:
+			return self.access_locks[fullname]
+		else:
+			with self.meta_lock:
+				if fullname not in self.access_locks:
+					self.access_locks[fullname] = threading.Lock()
+				return self.access_locks[fullname]
 
 	@classmethod
 	def get_subsystem(cls, sub_nspath, fullname, path=None, finder=None):
@@ -196,7 +212,6 @@ class PluginSubsystem(ModuleType):
 		self.initialized = False
 		self.config = {}
 		self._model = AttrDict()
-		self.access_lock = threading.Lock()
 
 	@property
 	def model(self):
@@ -274,10 +289,20 @@ class PluginSubsystem(ModuleType):
 		``init.py``, as well as mapping your config to your model, so it's strongly discouraged.
 
 		"""
-		with self.access_lock:
+
+		# We use a special lock here below, because dyne code can load other dyne code -- and this can
+		# even create cycles. We want to import a dyne module only once. But we have to lock per module, because
+		# otherwise we can deadlock if a dyne itself grabs a dyne.
+
+		# For a reason I haven't figured out, the debian-sources generator was triggering either the race
+		# condition or the deadlock. First I fixed the race condition. Then it deadlocked. This module-specific
+		# lock fixes both issues.
+
+		fullname = f"{self.__name__}.{key}"
+		access_lock = self.get_access_lock(fullname)
+		with access_lock:
 			if not self.initialized:
 				self.initialize()
-			fullname = f"{self.__name__}.{key}"
 			mod = sys.modules.get(fullname, None)
 			if mod:
 				return mod
