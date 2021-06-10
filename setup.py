@@ -5,7 +5,7 @@ with open("README.rst", "r") as fh:
 
 setuptools.setup(
 	name="subpop",
-	version="0.4.3",
+	version="0.4.4",
 	author="Daniel Robbins",
 	author_email="drobbins@funtoo.org",
 	description="A gentle evolution of the POP paradigm.",
@@ -18,7 +18,7 @@ setuptools.setup(
 		"Operating System :: POSIX :: Linux",
 	],
 	python_requires=">=3.7",
-	install_requires=[],
+	install_requires=["PyYAML"],
 	tests_require=["pytest-forked"],
 	packages=setuptools.find_packages(),
 	package_data={},
