@@ -16,11 +16,21 @@ What is Plugin-Oriented Programming?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Plugin-Oriented Programming is a software development methodology that is designed to encourage code maintainability and
-extensibility. It does this by implementing an alternative Python "code loader" that is a replacement for the
-traditional ``import`` statement, with enhanced functionality to support a paradigm of "pluggable" software. This,
-combined with the concept of a ``hub`` super-global, aims to give developers some interesting approaches for simplifying
-their internal code layout and avoiding problems that are commonly found in the development of OO (Object Oriented)
-software at scale.
+extensibility. Subpop implements this vision by implementing an alternative Python "code loader" that is a replacement
+for the traditional ``import`` statement, with enhanced functionality to support a paradigm of "pluggable" software.
+When you ``import dyne.foo`` -- you are actually importing using special code that looks in a plugin directory instead
+of in the traditional places that Python imports from.
+
+The predecessor to subpop, POP_, uses something called a "hub" as a super-global that is available throughout your
+application, and uses it to collect not just plugin subsystems, but also live objects your program may need (it doesn't
+use regular ``import`` statements for loading plugin subsystems like subpop does.)
+
+I have decided that this is messy and bad. So in subpop, you don't attach plugins to the hub, but you import them
+using ``import dyne.x.y.z``, and you are also discouraged from using the hub as a 'catch all' for live objects --
+instead a concept called a "model" is available, and each plugin subsystem has a model that can hold these objects.
+
+Why Plugin-Oriented Programming?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 OOP principles can encourage the creation of large, monolithic code bases that are highly inter-dependent and thus hard
 to maintain as well as refactor. Plugin-Oriented Programming aims to address this tendency by encouraging code to be
@@ -40,7 +50,21 @@ object methods, and this results in a mess over time.
 In a Nutshell, How Do You Use Subpop?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-First, you will create a command-line application in your Python project, using code similar to the following:
+Let's assume your Python project will create plugins, as well as have a program that uses these plugins.
+
+In the root of your Python project, you will want to create a ``subpop.yaml`` file. This file specifies the fully-
+qualified namespace of your plugins, as well as their location relative to the root of your project. Something like
+this would suffice:
+
+.. code-block:: yaml
+
+  namespace: org.funtoo.powerbus
+  root: plugins
+
+For this program, our namespace is "org.funtoo.powerbus", and it is customary to use this "reverse domain" format.
+And our plugins and plugin subsystems will live in a directory called "plugins".
+
+You might create a plugin called "plugins/session.py" that looks like this:
 
 .. code-block:: python
 
