@@ -13,6 +13,10 @@ import yaml
 PREFIX = "/usr"
 
 
+class LaunchError(Exception):
+	pass
+
+
 def get_root_plugin_path():
 	return f"{PREFIX}/lib/python{sys.version_info.major}.{sys.version_info.minor}/subpop"
 
@@ -213,6 +217,12 @@ class PluginSubsystem(ModuleType):
 		self.config = {}
 		self._model = AttrDict()
 
+	# The BEGINNING of all the model stuff. Basically, when you access the model, it will auto-initialize.
+	# This fully automatic functionality is kind of nice but also kind of sucks. Because you have no way
+	# to interact with the initialization and this becomes problematic, with the need to attach things to
+	# the hub, etc. So it should be moved to a Configuration/moons paradigm.
+
+	"""
 	@property
 	def model(self):
 		if not self.initialized:
@@ -240,6 +250,9 @@ class PluginSubsystem(ModuleType):
 			except TypeError as te:
 				raise TypeError(f"Init via {init_path}: {str(te)}")
 		self.initialized = True
+	"""
+
+	# The END of all the model stuff
 
 	def __iter__(self):
 		"""
@@ -254,7 +267,7 @@ class PluginSubsystem(ModuleType):
 		Also see``tests/test_import_iter.py`` for an example of how this can be used.
 		"""
 		if not self.initialized:
-			self.initialize()
+			raise LaunchError(f"Please launch {self.sub_nspath}.")
 		if self.__file__ is not None:
 			for file in os.listdir(self.path):
 				if file.endswith(".py"):
@@ -301,14 +314,19 @@ class PluginSubsystem(ModuleType):
 		fullname = f"{self.__name__}.{key}"
 		access_lock = self.get_access_lock(fullname)
 		with access_lock:
-			if not self.initialized:
-				self.initialize()
+			if not self.initialized and key != "moons":
+				raise LaunchError(f"Please launch {self.sub_nspath}.")
 			mod = sys.modules.get(fullname, None)
 			if mod:
 				return mod
 			else:
 				return self.finder.load_module(fullname)
 
+	async def launch(self, config_obj=None, **config_kwargs):
+		if config_obj:
+			self.model = config_obj()
+			await self.model.start(**config_kwargs)
+		self.initialized = True
 
 class DyneFinder:
 	"""
@@ -424,15 +442,15 @@ class DyneFinder:
 			return mod
 
 		ns_relpath = ".".join(full_split[:3])  # "org.funtoo.powerbus"
-
+		plugin_parts =full_split[3:]  # ["system"]
 		sub_nspath = ns_relpath
 		if len(full_split) > 3:
-			sub_nspath = sub_nspath + "/" + "/".join(full_split[3:])  # "org.funtoo.powerbus/system"
+			sub_nspath = sub_nspath + "/" + "/".join(plugin_parts)  # "org.funtoo.powerbus/system"
 
 		if ns_relpath in self.yaml_search_dict:
 			# We found a project referenced in PYTHONPATH. Look in it for the plugin.
 			yaml_obj = self.yaml_search_dict[ns_relpath]
-			partial_path = yaml_obj.resolve_relative_subsystem(full_split[3:])
+			partial_path = yaml_obj.resolve_relative_subsystem(plugin_parts)
 		else:
 			# Otherwise, look in our canonical plugin path.
 			partial_path = os.path.join(self.plugin_path, sub_nspath)
@@ -460,15 +478,17 @@ class DyneFinder:
 				except KeyError:
 					pass
 				raise be
-			if self.hub:
-				# do hub/model injection -- as long as we find a hub/model defined (typically set to None)
-				# TODO: some customization of hub/model injection by end-user would be cool
-				mod.__sub__ = ns_relpath
-				mod.__file__ = partial_path + ".py"
-				# *ALWAYS* inject the hub.
-				mod.hub = self.hub
+			my_sub_path = f"{self.prefix}.{ns_relpath}.{'.'.join(plugin_parts[:-1])}"
+			if not sys.modules[my_sub_path].initialized:
+				raise LaunchError(f"Please launch {my_sub_path} before using {partial_path}.py.")
+			# do hub/model injection -- as long as we find a hub/model defined (typically set to None)
+			mod.__sub__ = ns_relpath
+			mod.__file__ = partial_path + ".py"
+			# *ALWAYS* inject the hub.
+			mod.hub = self.hub
 		elif mod_type == "sub":
 			mod = sys.modules[fullname] = PluginSubsystem.get_subsystem(sub_nspath, fullname, path=partial_path, finder=self)
 			mod.__path__ = []
+			mod.__launched__ = False
 
 		return mod

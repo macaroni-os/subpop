@@ -123,6 +123,15 @@ class Hub(dict):
 			loop = self._thread_ctx._loop = asyncio.new_event_loop()
 		return loop
 
+	def run_async_adapter(self, corofn, *args, **kwargs):
+		"""
+		Use this method to run an asynchronous worker within a ThreadPoolExecutor.
+		Without this special wrapper, this normally doesn't work, and the
+		ThreadPoolExecutor will not allow async calls.  But with this wrapper, our
+		worker and its subsequent calls can be async.
+		"""
+		return self.LOOP.run_until_complete(corofn(*args, **kwargs))
+
 	def __getattr__(self, name):
 		if name not in self:
 			frame = inspect.stack()[1]
