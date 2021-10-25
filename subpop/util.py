@@ -390,7 +390,7 @@ class DyneFinder:
 		This method accepts ``partial_path`` as an argument, which is a fully-qualified filesystem path to something
 		that looks like ``system/foo``. This method figures out if ``system/foo`` is a directory, and thus a plugin
 		subsystem, or ``system/foo.py`` exists, and we are trying to load a plugin. It returns "sub" for subsystem,
-		"plugin" for plugin, and None in all other cases.
+		"plugin" for plugin, and will return None if neither is found.
 
 		:param partial_path: fully-qualified path, to a directory, or if we add a ".py" ourselves, maybe a plugin!
 		:type partial_path: str
@@ -403,9 +403,12 @@ class DyneFinder:
 				return "sub"
 		except FileNotFoundError:
 			# This will raise FileNotFound exception if this file doesn't exist.
-			farf = os.stat(partial_path + ".py", follow_symlinks=True)
-			if stat.S_ISREG(farf.st_mode):
-				return "plugin"
+			try:
+				farf = os.stat(partial_path + ".py", follow_symlinks=True)
+				if stat.S_ISREG(farf.st_mode):
+					return "plugin"
+			except FileNotFoundError as fnfe:
+				return
 
 	def load_module(self, fullname):
 		# do a lock before using our mod_path_lock to acquire a lock!
@@ -460,9 +463,8 @@ class DyneFinder:
 
 		# partial_path may point to a subsystem, or a python plugin (.py). We need to figure out which:
 
-		try:
-			mod_type = self.identify_mod_type(partial_path)
-		except FileNotFoundError:
+		mod_type = self.identify_mod_type(partial_path)
+		if mod_type is None:
 			raise ModuleNotFoundError(
 				f'DyneFinder couldn\'t find the specified plugin or subsystem "{fullname}" -- looked for {partial_path}(.py) {self.thread_str}'
 			)
