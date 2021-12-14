@@ -101,7 +101,7 @@ class ProjectData:
 		self.full_path = os.path.join(self.base_path, self.namespace)
 
 	def resolve_relative_subsystem(self, rel_subparts):
-
+		logging.debug
 		if not len(rel_subparts):
 			return self.full_path
 		else:
@@ -229,9 +229,6 @@ class PluginSubsystem(ModuleType):
 			self.initialize()
 		return self._model
 
-	def apply_config(self, **kwargs):
-		self.config = kwargs
-
 	def initialize(self):
 		if self.initialized:
 			return
@@ -314,7 +311,7 @@ class PluginSubsystem(ModuleType):
 		fullname = f"{self.__name__}.{key}"
 		access_lock = self.get_access_lock(fullname)
 		with access_lock:
-			if not self.initialized and key != "moons":
+			if not self.initialized:
 				raise LaunchError(f"Please launch {self.sub_nspath}.")
 			mod = sys.modules.get(fullname, None)
 			if mod:
@@ -345,8 +342,10 @@ class DyneFinder:
 		super().__init__()
 		self.hub = hub
 		if plugin_path is None:
+			print("PLUGIN PATH IS NONE ,CWD")
 			self.plugin_path = os.getcwd()
 		else:
+			print("PLUGIN PATH IS", plugin_path)
 			self.plugin_path = plugin_path
 		self.yaml_search_dict = {}
 		self.init_yaml_loader()
@@ -456,6 +455,7 @@ class DyneFinder:
 			partial_path = yaml_obj.resolve_relative_subsystem(plugin_parts)
 		else:
 			# Otherwise, look in our canonical plugin path.
+			print("CANONICAL")
 			partial_path = os.path.join(self.plugin_path, sub_nspath)
 
 		if partial_path is None:
@@ -466,7 +466,7 @@ class DyneFinder:
 		mod_type = self.identify_mod_type(partial_path)
 		if mod_type is None:
 			raise ModuleNotFoundError(
-				f'DyneFinder couldn\'t find the specified plugin or subsystem "{fullname}" -- looked for {partial_path}(.py) {self.thread_str}'
+				f'DyneFinder couldn\'t find the specified plugin or subsystem "{fullname}" -- looked for {partial_path}(.py)'
 			)
 
 		if mod_type == "plugin":
@@ -480,7 +480,7 @@ class DyneFinder:
 				except KeyError:
 					pass
 				raise be
-			my_sub_path = f"{self.prefix}.{ns_relpath}.{'.'.join(plugin_parts[:-1])}"
+			my_sub_path = f"{self.prefix}.{ns_relpath}.{'.'.join(plugin_parts[:-1])}".rstrip('.')
 			if not sys.modules[my_sub_path].initialized:
 				raise LaunchError(f"Please launch {my_sub_path} before using {partial_path}.py.")
 			# do hub/model injection -- as long as we find a hub/model defined (typically set to None)

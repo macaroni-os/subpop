@@ -3,9 +3,10 @@
 import os
 import sys
 from subpop.util import DyneFinder
+import pytest
 
-
-def test_import_env():
+@pytest.mark.asyncio
+async def test_import_env():
 	"""
 	This test maps tests/plugin_test_dir as a 'plugin directory', then sees if we can
 	import the dyne dyne.org.funtoo.powerbus.system.foo and access a variable in it.
@@ -16,5 +17,5 @@ def test_import_env():
 		sys.meta_path.append(DyneFinder())
 
 	import dyne.org.funtoo.anotherproject.mysub as mysub
-
+	await mysub.launch()
 	assert mysub.foo.FOOBAR == "oni"

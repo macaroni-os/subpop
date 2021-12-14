@@ -51,18 +51,22 @@ class Packager:
 
 		"""
 		data_out = []
+		print("ROOT",self.proj_yaml.root_path)
 		for root, dirs, files in os.walk(self.proj_yaml.root_path):
+			print("RDF", root, dirs, files)
 			actual_py_files = []
 			for file in files:
-				rel_to_root_dir = os.path.join(self.proj_yaml.root_path[len(self.proj_yaml.project_path) + 1 :])
+				rel_to_root_dir = os.path.join(root[len(self.proj_yaml.project_path) + 1:])
+				print("RELTOROOT", rel_to_root_dir)
 				if file.endswith(".py"):
 					actual_py_files.append(os.path.join(rel_to_root_dir, file))
 			if not len(actual_py_files):
 				continue
 			else:
-				dest_install_path = os.path.join(self.plugin_subpath, root[len(self.proj_yaml.root_path) + 1 :])
+				dest_install_path = os.path.join(self.plugin_subpath, root[len(self.proj_yaml.root_path) + 1:])
 
 				data_out.append((dest_install_path, actual_py_files))
+		print(f"RETURNED DATA_FILES: {data_out}")
 		return data_out
 
 

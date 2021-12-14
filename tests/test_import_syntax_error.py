@@ -2,9 +2,10 @@
 
 import os
 from subpop.hub import Hub
+import pytest
 
-
-def test_import_syntax_error():
+@pytest.mark.asyncio
+async def test_import_syntax_error():
 	"""
 	Try to use a plugin with a syntax error in it. We should get a SyntaxError exception.
 	"""
@@ -14,7 +15,7 @@ def test_import_syntax_error():
 
 	got_expected_exception = False
 	import dyne.org.funtoo.anotherproject.mysub as mysub
-
+	await mysub.launch()
 	try:
 		print(mysub.syntax_error.foo)
 	except SyntaxError:

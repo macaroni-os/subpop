@@ -5,9 +5,10 @@ import os
 import types
 from subpop.hub import Hub
 from subpop.util import DyneFinder
+import pytest
 
-
-def test_import_iter():
+@pytest.mark.asyncio
+async def test_import_iter():
 	"""
 	Subpop has enhanced abilities related to discovering plugins in a subsystem. You can import a dyne using the
 	regular python "import" statement, and you're actually able to iterate over the plugins in the dyne!
@@ -23,7 +24,7 @@ def test_import_iter():
 	hub = Hub(finder=DyneFinder(plugin_path=plugin_dir))
 
 	import dyne.org.funtoo.powerbus.system as system_sub
-
+	await system_sub.launch()
 	items = []
 	for plugin in system_sub:
 		logging.warning(plugin)
