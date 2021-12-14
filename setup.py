@@ -5,7 +5,7 @@ with open("README.rst", "r") as fh:
 
 setuptools.setup(
 	name="subpop",
-	version="0.4.4",
+	version="1.0.0",
 	author="Daniel Robbins",
 	author_email="drobbins@funtoo.org",
 	description="A gentle evolution of the POP paradigm.",
