@@ -26,7 +26,6 @@ def get_user_plugin_path():
 
 # TODO: DyneFinder does not find multiple dynes and doesn't merge them yet. This needs some redesign.
 
-
 def load_plugin(path, name):
 	"""
 

@@ -4,12 +4,12 @@
 The purpose of this file is to contain things related to packaging, such as location of plugin directory,
 and commands to manage the plugin repository for each python implementation.
 """
+
 import logging
 import sys
 import os
 from compileall import compile_dir
 from setuptools.command.install import install
-
 from subpop.util import YAMLProjectData, PREFIX
 
 
@@ -51,13 +51,10 @@ class Packager:
 
 		"""
 		data_out = []
-		print("ROOT",self.proj_yaml.root_path)
 		for root, dirs, files in os.walk(self.proj_yaml.root_path):
-			print("RDF", root, dirs, files)
 			actual_py_files = []
 			for file in files:
 				rel_to_root_dir = os.path.join(root[len(self.proj_yaml.project_path) + 1:])
-				print("RELTOROOT", rel_to_root_dir)
 				if file.endswith(".py"):
 					actual_py_files.append(os.path.join(rel_to_root_dir, file))
 			if not len(actual_py_files):
@@ -66,7 +63,6 @@ class Packager:
 				dest_install_path = os.path.join(self.plugin_subpath, root[len(self.proj_yaml.root_path) + 1:])
 
 				data_out.append((dest_install_path, actual_py_files))
-		print(f"RETURNED DATA_FILES: {data_out}")
 		return data_out
 
 
