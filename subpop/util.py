@@ -21,6 +21,9 @@ def get_root_plugin_path():
 	return f"{PREFIX}/lib/python{sys.version_info.major}.{sys.version_info.minor}/subpop"
 
 
+def get_user_plugin_path():
+	return os.path.join(os.path.expanduser("~"), f".local/lib/python{sys.version_info.major}.{sys.version_info.minor}/subpop")
+
 # TODO: DyneFinder does not find multiple dynes and doesn't merge them yet. This needs some redesign.
 
 
@@ -101,7 +104,6 @@ class ProjectData:
 		self.full_path = os.path.join(self.base_path, self.namespace)
 
 	def resolve_relative_subsystem(self, rel_subparts):
-		logging.debug
 		if not len(rel_subparts):
 			return self.full_path
 		else:
@@ -341,13 +343,11 @@ class DyneFinder:
 	def __init__(self, hub=None, plugin_path=None):
 		super().__init__()
 		self.hub = hub
-		if plugin_path is None:
-			print("PLUGIN PATH IS NONE ,CWD")
-			self.plugin_path = os.getcwd()
-		else:
-			print("PLUGIN PATH IS", plugin_path)
-			self.plugin_path = plugin_path
+		# self.plugin_path is a means to override self.path_search_dict for tests -- it allows us to say "look here for subs" instead
+		# of looking in /usr/lib/pythonx.y and ~/.local/lib/pythonx.y.
+		self.plugin_path = plugin_path
 		self.yaml_search_dict = {}
+		self.path_search_dict = {}
 		self.init_yaml_loader()
 		self.thread_id = threading.get_ident()
 		self.mod_path_lock = defaultdict(lambda: threading.Lock())
@@ -357,16 +357,26 @@ class DyneFinder:
 
 		# This adds all plugins that are in /usr/lib/pythonx.y/subpop:
 
-		plugin_root = get_root_plugin_path()
-		try:
-			for namespace in os.listdir(plugin_root):
-				self.yaml_search_dict[namespace] = ProjectData(plugin_root, namespace)
-		except FileNotFoundError:
-			pass
-		except PermissionError:
-			logging.warning(f"Unable to read {plugin_root} due to insufficient permissions.")
+		if self.plugin_path:
+			scan_paths = [ self.plugin_path ]
+		else:
+			scan_paths = [ get_root_plugin_path(), get_user_plugin_path() ]
 
-		# This adds all plugins mapped via PYTHONPATH:
+		for scan_path in scan_paths:
+			try:
+				for namespace in os.listdir(scan_path):
+					if namespace in self.path_search_dict:
+						logging.warning(f"Subpop namespace {namespace} at {self.path_search_dict.full_path} overridden by subsystem at {scan_path}")
+					self.path_search_dict[namespace] = ProjectData(scan_path, namespace)
+			except FileNotFoundError:
+				pass
+			except PermissionError:
+				logging.warning(f"Unable to read {scan_path} due to insufficient permissions.")
+
+		# This adds all plugins mapped via PYTHONPATH. PYTHONPATH is 'special' in that we assume these
+		# are development sources; therefore, we look for a subpop.yaml file and parse it directly to
+		# identify our namespace and location of subsystems, rather than looking for our official
+		# directory structure.
 
 		if "PYTHONPATH" in os.environ:
 			ppath_split = os.environ["PYTHONPATH"].split(":")
@@ -449,14 +459,15 @@ class DyneFinder:
 		if len(full_split) > 3:
 			sub_nspath = sub_nspath + "/" + "/".join(plugin_parts)  # "org.funtoo.powerbus/system"
 
+		partial_path = None
 		if ns_relpath in self.yaml_search_dict:
 			# We found a project referenced in PYTHONPATH. Look in it for the plugin.
 			yaml_obj = self.yaml_search_dict[ns_relpath]
 			partial_path = yaml_obj.resolve_relative_subsystem(plugin_parts)
-		else:
-			# Otherwise, look in our canonical plugin path.
-			print("CANONICAL")
-			partial_path = os.path.join(self.plugin_path, sub_nspath)
+		elif ns_relpath in self.path_search_dict:
+			# We found the subsystem in our path structure
+			path_obj: ProjectData = self.path_search_dict[ns_relpath]
+			partial_path = path_obj.resolve_relative_subsystem(plugin_parts)
 
 		if partial_path is None:
 			raise ModuleNotFoundError(f"DyneFinder couldn't find {fullname}")
