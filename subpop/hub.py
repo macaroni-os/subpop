@@ -11,29 +11,145 @@ from subpop.util import DyneFinder
 
 class Hub(dict):
 	"""
-	The Hub is a superglobal and a core paradigm of Plugin-Oriented Programming. It is designed to always be available
-	as a global in your plugins. The Subpop code loader automatically injects the hub into each plugin's global
-	namespace. This means that any class method or function in your plugin can reference the hub as a global variable.
-	It will be transformed into your main thread's Hub object by the time your plugin's functions or methods are called.
 
-	One important note, however -- you won't be able to reference the hub in your plugin's global namespace, since it
-	won't be available yet. So always reference the hub inside a function or method. In other words, here's an example
-	plugin::
+	The Purpose of Subpop
+	=====================
 
-	        def my_plugin_function():
-	                # hub will be 'live' and work:
-	                hub.foo()
+	You're a person who knows Python.
 
-	        # hub is not initialized yet, and this will not work:
-	        hub.foo()
+	Consider a 'python snippet' or function that you want to write, and you want it to perform a
+	variety of useful things and be embedded in a powerful framework rather than be a full
+	standalone python program. You just want to write a few lines of code but have it do a lot
+	of powerful things.
 
-	Also note: You will want to create a hub in your application's main thread, *before* you start any asyncio loop.
-	See ``LOOP`` below for the right way to start your program's asyncio loop.
+	Now, imagine you're the developer of a sophisticated and powerful framework. You want to make
+	this framework available to be used by others by having them write very simple standalone
+	'snippets' of Python code without requiring the complex boilerplate of instantiating your
+	entire framework and importing a lot of third-party modules. You have a command or daemon
+	that instantiates the framework already, and this isn't the role of those who will be
+	leveraging your framework. All you need is a snippet of code from them, maybe a single
+	function -- or a bunch of snippets -- that provide processing instructions for your
+	framework. You have a standard function that users of your  framework need to provide --
+	and your framework runs this function. Let's not make their task too difficult. The functions
+	and methods are all ready to be called -- you just need the code to call them.
 
-	:param lazy: By default, the hub will load plugins when they are first referenced. When ``lazy`` is set to ``False``,
-	        all plugins in the sub will be loaded when the sub is added to the hub via ``hub.add(path_to_sub)``.
-	        It's recommended to use the default setting of ``True`` -- loading each plugin on first reference.
-	:type lazy: bool
+	We are talking about the new world of "code as a service", or "function as a service" --
+	where people can simply write Python can you can load it into your framework. This is
+	different from a traditional model of Python software development where all you can provide
+	are modules and then others are left to write full standalone programs.
+
+	For hosting as well as for community-oriented projects, the "code as a service" model is one
+	that is more natural and powerful, because it makes it easier to get work done. Just write
+	code, and you're done. Your code runs within a larger thing. But your code doesn't need to
+	be part of this larger thing's code base. The larger thing can grab your code from the
+	filesystem, a git repo, using HTTPS -- whatever.
+
+	Subpop is my personal space for exploring these concepts and facilitating their use inside
+	Funtoo's metatools framework.
+
+
+	Subpop Origins
+	==============
+
+	Working with Thomas Hatch (creator of Salt) on his R&D Team, I was excited to learn of his
+	POP ("Plugin Oriented Programming") framework. It, I suppose, was his personal framework
+	where he was exploring various concepts. It looked promising. I started porting my Funtoo
+	projects over to POP, including Funtoo's internal infrastructure and our tooling projects.
+	I found various limitations in the framework. The largest problems were conceptual --
+	what *specific* problems was the framework trying to solve, and why? -- this was unclear,
+	as well as its lack of a functioning internal API and model for POP program structure that
+	almost guaranteed any non-trivial software project would turn into an incoherent mess
+	as it leveraged POP more and more.
+
+	This made it unsuitable for my continued work -- but I had already ported quite a bit of
+	Funtoo internal code over to POP! So now I was stuck having to create its successor, simply
+	because of my current dependence on it for Funtoo code. I liked the idea of properly
+	architecting the concepts that in POP were left to subsist as odd anti-patterns. Even if
+	I didn't like the idea, I was kind of obligated to try to properly architect these concepts
+	to beat a path in the wilderness and try to make these concepts start to work better for
+	my code, since as I was likely the world's most prolific open source POP-using developer,
+	I was starting to see some pretty big problems.
+
+	This involved a complete from-scratch creation called 'subpop', which is this thing,
+	which has evolved alongside Funtoo code that I have tried to get to a better place. I had
+	to take some partially-developed ideas and try to complete the thought -- all while keeping my
+	code running. A bit tricky!
+
+	The Hub -- And What's Wrong With It, Exactly?
+	=============================================
+
+	POP has the concept of a hub, which is used pervasively throughout POP and POP projects. So
+	this paradigm also exists in subpop. However, in subpop, I've put some thought into the
+	appropriate use of the hub and what problem it actually solves. In POP, the hub is
+	everywhere. You can't get away from it. There is only one world, and this world has a hub
+	in it. This raised many questions in my mind:
+
+	1. What parts of code should be 'in POP' and what should be implemented as traditional
+	   Python modules? How do they get along?
+
+	2. What is this hub needed for, again?
+
+	When it's just there, all the time, then the hub doesn't really serve a purpose other
+	than being a "new and awesome way to write the same thing in a brand new and confusing
+	way!" This was exacerbated by POP being designed to discourage the use of object-oriented
+	programming paradigms in your codebase, due to Tom's personal dislike of OOP! This was a
+	very bold -- and probably very incorrect -- position to take. Subpop has been designed
+	to be OOP-friendly because OOP is the best model we have for encapsulating and organizing
+	complex functionality within our code.
+
+	For subpop, I've tried to apply some standards to those weird and wonderful new paradigms,
+	namely:
+
+	Anything that deviates from standard Python software development practices should
+	have a clear intention and a specific problem it is trying to solve. This means that by
+	definition, any such deviation should not be presented as 'the one way' to write software.
+	(POP made this mistake. Everything revolves around the hub. You can't escape it in POP code.
+	And if you write POP code, it's very hard to write OOP code. I'm not interested in supporting
+	this kind of "my way or the highway" approach.)
+
+	For subpop, the hub fits into a paradigm of  two worlds -- that of the framework creator and
+	that of the framework user.
+
+	Subpop's hub is really meant to exist only in the world of the framework user. The framework
+	creator should create a "walled garden" with a hub in it for the framework user to leverage.
+	The hub is utilized in this garden. Your framework internals themselves do not need a hub or
+	hubs. They are for your framework users.
+
+	For this purpose, a hub can make a lot of sense.
+
+
+	Dynes -- Their Evolution
+	========================
+
+	POP had a model of auto-attaching functions to the hub hierarchically called "dyne", and
+	grabbing these functions from potentially other code bases. This happened magically, behind
+	the scenes, and in a way that was not compatible with standard module imports.
+
+	Subpop re-implements the dyne model with a loader that is compatible with the regular
+	"import" statement. Any import beginning with ``dyne.org.funtoo``, for example, is imported
+	from the ``org.funtoo`` namespace. Subpop manages its own tree of dynes that get installed
+	in parallel to site-packages. So, subpop dynes are very different from POP dynes, but serve
+	a similar purpose of "providing access to, and loading of a subsystem". This subsystem is
+	just mapped into the current code's namespace via a regular import statement. These
+	subsystems are managed differently from regular imports because subpop subsystems are different
+	from standard Python modules (and also from POP subsystems.)
+
+	Every subsystem in subpop, after being imported, must be launched with a model. This model
+	is designed to provide the subsystem with configuration it needs to properly initialize.
+	The model is implemented as a Python class, so it can have a lot of useful well-organized
+	and encapsulated functionality. This was something added to subpop due to a lack of a
+	coherent way to launch a subsystem in POP.
+
+	Once launched, the subsystem is ready for use. Then the intention is for the subsystem
+	to be attached to a Hub by the framework creator, which can really be any class (it doesn't
+	have to be this one, although this will likely evolve into the superclass to derive your
+	Hubs from).
+
+	Now your framework is ready to load some external Python code, call a function in it, and
+	pass it the hub as an argument. The hub mediates access to subsystems, and automatically
+	passes itself as context to these subsystems.
+
+	Ta da! That's what a hub is for. We've found its purpose.
 	"""
 
 	def __init__(self, finder=None):
